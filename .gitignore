@@ -1,0 +1,52 @@
+# macOS system files
+.DS_Store
+
+# Node files
+node_modules/
+
+# Build directories
+build/
+dist/
+.next/
+.pnpm-store/
+
+# Postgres data directory
+**/pg-data-payloadcms/
+
+# Environment files -- (prod env vars are in secrets manager, hence leaving these others in)
+# .env
+# **/.env.*
+# Keeping the dev & example envs in, since just use locally
+!**/.env.example
+!**/dev.env
+
+# Deployment-related
+.vercel
+
+# Media files and uploads
+media/
+public/media/
+
+# Generated files
+public/robots.txt
+public/sitemap*.xml
+
+# Logs
+*.log
+
+# Runtime data
+*.pid
+*.seed
+*.pid.lock
+
+# Database backup files
+# Ignore all SQL files
+*.sql
+# Explicitly include this specific SQL file
+!/payloadcms-052225blue/payloadcms-postgres-db/init-scripts/01-init-permissions.sql
+*.dump
+*.backup
+
+# Ignore everything in sync-from-prod except the relevant readme file
+sync-from-prod/*
+!sync-from-prod/DB-SYNC-README.md

@@ -1,0 +1,52 @@
+# This is for local dev (e.g. laptop) development
+services:
+  payloadcms-db-052225blue:
+    image: postgres:17
+    container_name: payloadcms-db-052225blue
+    env_file:
+      - ./payloadcms-db-052225blue/.env
+    ports:
+      - "5432:5432"
+    volumes:
+      # Bind mounts - directories from your host mapped into the container
+      - ./payloadcms-db-052225blue/pg-data-payloadcms:/var/lib/postgresql/data
+      - ./payloadcms-db-052225blue/init-scripts:/docker-entrypoint-initdb.d
+    networks:
+      - dockernet-payloadcms-blue
+
+  payloadcms-cms-052225blue:
+    image: node:20-alpine
+    container_name: payloadcms-cms-052225blue
+    working_dir: /app
+    volumes:
+      # Bind mount - maps host directory to container for live code editing
+      - ./payloadcms-cms:/app
+      
+      # Named volumes for performance - Docker-managed storage, not bind mounts
+      # Benefits: 1) Faster I/O operations, especially on macOS/Windows (avoids filesystem translation)
+      #           2) Preserves packages between container rebuilds (avoids repeated npm installs)
+      #           3) Avoids host filesystem permissions issues with node_modules
+      #           4) Optimized for heavy read/write operations like webpack/babel compilation
+      - payloadcms_node_modules:/app/node_modules
+      - payloadcms_next_cache:/app/.next
+    command: sh -c "npm install -g pnpm && pnpm install && pnpm dev"
+    env_file:
+      - ./payloadcms-cms-052225blue/.env
+    ports:
+      - "3000:3000"
+    networks:
+      - dockernet-payloadcms-blue
+    depends_on:
+      - payloadcms-db-052225blue
+
+volumes:
+  pg-data-payloadcms:
+    name: pg-data-payloadcms
+  payloadcms_node_modules:
+    name: payloadcms_node_modules
+  payloadcms_next_cache:
+    name: payloadcms_next_cache
+
+networks:
+  dockernet-payloadcms-blue:
+    name: dockernet-payloadcms-blue

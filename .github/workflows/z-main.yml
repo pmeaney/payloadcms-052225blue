@@ -1,0 +1,177 @@
+# .github/workflows/z-main.yml
+name: Main Deployment Pipeline
+
+# --------------------------------------------------------------------
+# PayloadCMS Blue/Green Deployment Template (blue Deployment)
+# --------------------------------------------------------------------
+# This project follows a structured naming convention:
+# Repository: topicname-dateColor     (e.g., payloadcms-052225blue)
+# Containers: topicname-dateColor-app (e.g., payloadcms-052225blue-cms, payloadcms-052225blue-db)
+# This naming approach makes it easy to generate blue/green deployments
+# --------------------------------------------------------------------
+
+on:
+  push:
+    branches: [main]
+    # branches: [blah]
+
+permissions:
+  contents: read
+  actions: write # Grant permissions for artifact operations
+
+jobs:
+  # First, check database status/initialize if needed
+  database:
+    uses: ./.github/workflows/a-db-init.yml
+    with:
+      environment: production
+      topic_name: payloadcms
+      deployment_date: 052225
+      deployment_color: blugit inite
+      db_container_name: payloadcms-052225blue-db
+    permissions:
+      contents: read
+    secrets:
+      LINUX_SSH_PRIVATE_KEY_CICD: ${{ secrets.LINUX_SSH_PRIVATE_KEY_CICD }}
+      LINUX_BOTCICDGHA_USERNAME: ${{ secrets.LINUX_BOTCICDGHA_USERNAME }}
+      LINUX_SERVER_IPADDRESS: ${{ secrets.LINUX_SERVER_IPADDRESS }}
+      POSTGRES__SECRET_ENV_FILE: ${{ secrets.POSTGRES__SECRET_ENV_FILE }}
+
+  # Deploy cms-fe if needed
+  # NOTE: Add a GH PAT (Classic) to the repo secrets, and either name it "GHPATCICD_RPOWKFLO_WRDPCKGS" or update its name on the right side below
+  # And make sure it has permissions of: Repo, Workflow, Write/Read/Delete Packages
+  # i.e. Leftside: how the var name is used in these CICD scripts.  Right side: name of the secret within Github Repo Secrets--
+  #      GHPAT_AS_CICD_SECRET: ${{ secrets.GHPATCICD_RPOWKFLO_WRDPCKGS }}
+  cms-fe:
+    needs: database
+    uses: ./.github/workflows/b-cms-fe-check-deploy.yml
+    with:
+      environment: production
+      topic_name: payloadcms
+      deployment_date: 052225
+      deployment_color: blue
+      cms_dir_name: payloadcms-cms
+      cms_container_name: payloadcms-052225blue-cms
+      cms_image_name: ghcr.io/${{ github.actor }}/payloadcms-052225blue-cms:latest
+    permissions:
+      contents: write
+      actions: write # Explicitly grant artifact permissions
+    secrets:
+      LINUX_SSH_PRIVATE_KEY_CICD: ${{ secrets.LINUX_SSH_PRIVATE_KEY_CICD }}
+      LINUX_BOTCICDGHA_USERNAME: ${{ secrets.LINUX_BOTCICDGHA_USERNAME }}
+      LINUX_SERVER_IPADDRESS: ${{ secrets.LINUX_SERVER_IPADDRESS }}
+      GHPAT_AS_CICD_SECRET: ${{ secrets.GHPATCICD_RPOWKFLO_WRDPCKGS }}
+      PAYLOAD__SECRET_ENV_FILE: ${{ secrets.PAYLOAD__SECRET_ENV_FILE }}
+
+  # Create a comprehensive deployment summary with enhanced tracking information
+  deployment-summary:
+    needs: [database, cms-fe]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read # Only needs read permissions for artifacts
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Get full history for commit information
+
+      - name: Download CMS-FE deployment marker
+        id: download-cms-fe-marker
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: cms-fe-last-deployed-commit
+          path: ./deployment-markers
+
+      - name: Create Enhanced Deployment Summary
+        run: |
+          # Define constants
+          TOPIC_NAME="payloadcms"
+          DEPLOYMENT_DATE="052225"
+          DEPLOYMENT_COLOR="blue"
+          DB_CONTAINER_NAME="payloadcms-052225blue-db"
+          CMS_CONTAINER_NAME="payloadcms-052225blue-cms"
+          CMS_IMAGE_NAME="ghcr.io/${{ github.actor }}/payloadcms-052225blue-cms:latest"
+          CMS_DIR_NAME="payloadcms-cms"
+
+          # Collect information about the current and last deployed commits
+          CURRENT_COMMIT=$(git rev-parse HEAD)
+          CURRENT_COMMIT_SHORT=$(git rev-parse --short HEAD)
+          CURRENT_COMMIT_DATE=$(git show -s --format=%ci $CURRENT_COMMIT)
+          CURRENT_COMMIT_MESSAGE=$(git show -s --format=%s $CURRENT_COMMIT)
+
+          # Get cms-fe last deployed commit info if available
+          if [ -f "./deployment-markers/last-cms-fe-commit.txt" ]; then
+            CMS_FE_LAST_COMMIT=$(cat ./deployment-markers/last-cms-fe-commit.txt)
+            CMS_FE_LAST_COMMIT_SHORT=$(git rev-parse --short $CMS_FE_LAST_COMMIT)
+            CMS_FE_LAST_COMMIT_DATE=$(git show -s --format=%ci $CMS_FE_LAST_COMMIT)
+            CMS_FE_CHANGES_COUNT=$(git diff --name-only $CMS_FE_LAST_COMMIT $CURRENT_COMMIT -- ./${CMS_DIR_NAME} | wc -l)
+            CMS_FE_DEPLOYED_NOW="${{ needs.cms-fe.outputs.had_changes }}"
+          else
+            CMS_FE_LAST_COMMIT="No previous deployment"
+            CMS_FE_LAST_COMMIT_SHORT="N/A"
+            CMS_FE_LAST_COMMIT_DATE="N/A"
+            CMS_FE_CHANGES_COUNT="N/A (first deployment)"
+            CMS_FE_DEPLOYED_NOW="${{ needs.cms-fe.outputs.had_changes }}"
+          fi
+
+          # Create the deployment summary
+          echo "# 📊 Deployment Summary for Commit ${CURRENT_COMMIT_SHORT}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 🔄 Current Workflow Information" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "| ------ | ----- |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Commit** | \`${CURRENT_COMMIT_SHORT}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Date** | ${CURRENT_COMMIT_DATE} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Message** | ${CURRENT_COMMIT_MESSAGE} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Deployment** | ${TOPIC_NAME}-${DEPLOYMENT_DATE}${DEPLOYMENT_COLOR} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Database section
+          echo "## 💾 Database (${DB_CONTAINER_NAME})" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [[ "${{ needs.database.outputs.needs_depl__db }}" == "true" ]]; then
+            echo "✅ **Action taken**: Database container was newly created" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "ℹ️ **Action taken**: Database container already existed, no action needed" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # cms-fe deployment section with enhanced tracking
+          echo "## 🌐 CMS (${CMS_CONTAINER_NAME})" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "| ------ | ----- |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Last deployed commit** | \`${CMS_FE_LAST_COMMIT_SHORT}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Last deployment date** | ${CMS_FE_LAST_COMMIT_DATE} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Changes detected** | ${CMS_FE_DEPLOYED_NOW} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Image** | ${CMS_IMAGE_NAME} |" >> $GITHUB_STEP_SUMMARY
+
+          # Use fallback count if the output count is missing
+          if [[ "${{ needs.cms-fe.outputs.had_changes }}" == "true" && -n "${{ needs.cms-fe.outputs.changed_files_count }}" ]]; then
+            echo "| **Number of changes** | ${{ needs.cms-fe.outputs.changed_files_count }} files |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| **Number of changes** | ${CMS_FE_CHANGES_COUNT} files |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "| **Action taken** | ${{ needs.cms-fe.outputs.action_taken }} |" >> $GITHUB_STEP_SUMMARY
+
+          # If changes were detected, show what changed using the output from cms-fe workflow
+          if [[ "${{ needs.cms-fe.outputs.had_changes }}" == "true" ]]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### 📝 CMS Changes" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            if [[ -n "${{ needs.cms-fe.outputs.changed_files }}" ]]; then
+              echo "${{ needs.cms-fe.outputs.changed_files }}" >> $GITHUB_STEP_SUMMARY
+            else
+              # Fallback method if output is not available
+              if [ -f "./deployment-markers/last-cms-fe-commit.txt" ]; then
+                git diff --name-only $CMS_FE_LAST_COMMIT $CURRENT_COMMIT -- ./${CMS_DIR_NAME} >> $GITHUB_STEP_SUMMARY
+              else
+                echo "First deployment - all files are new" >> $GITHUB_STEP_SUMMARY
+              fi
+            fi
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          fi

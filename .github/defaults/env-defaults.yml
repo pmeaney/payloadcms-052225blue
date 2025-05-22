@@ -1,0 +1,26 @@
+# .github/defaults/env-defaults.yml
+# All of these are default env vars
+# The images will be build with these env vars.
+#
+# The production containers will then be created from the images,
+# at which point production secrets will be injected into the container
+# to overwrite these defaults.
+# (the production secrets will be stored as github action environment secrets (e.g. environment named "production", with three items-- one per set.
+#  and of course, ensure that those production secrets are brand new values for the relevant security-relevant items))
+---
+postgres_defaults: |
+  POSTGRES_DB=payloadcms-052225blue-db
+  POSTGRES_USER=payloadcms-052225blue-user
+  POSTGRES_PASSWORD=payloadcmsPass
+
+# For when you go to add these to the github secret in the repo settings--
+# 1. Do not include the two secrets at the bottom-- both have "SKIP" in their name. Delete them.)
+# 2. Be use to update 'NEXT_PUBLIC_SERVER_URL' to your live URL once ready-- for use by next.config.js
+payloadcms_defaults: |
+  DATABASE_URI=postgres://payloadcms-052225blue-user:payloadcmsPass@payloadcms-052225blue-db:5432/payloadcms-052225blue-db
+  PAYLOAD_SECRET=0505d1e544a564c8730e83fb
+  NEXT_PUBLIC_SERVER_URL=http://localhost:3000
+  CRON_SECRET=YOUR_CRON_SECRET_HERE
+  PREVIEW_SECRET=YOUR_SECRET_HERE
+  PAYLOAD_SKIP_MIGRATION=true
+  NEXT_SKIP_DB_CONNECT=true

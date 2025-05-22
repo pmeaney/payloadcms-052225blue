@@ -1,0 +1,321 @@
+name: Frontend Check. If changes detected, Deploy new image
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+        description: "The deployment environment to use"
+      topic_name:
+        required: true
+        type: string
+        description: "The base name of the project"
+      deployment_date:
+        required: true
+        type: string
+        description: "Deployment date identifier (e.g., 052225)"
+      deployment_color:
+        required: true
+        type: string
+        description: "Deployment color (e.g., blue, blue, green)"
+      cms_dir_name:
+        required: true
+        type: string
+        description: "Directory containing CMS code"
+      cms_container_name:
+        required: true
+        type: string
+        description: "Name for the CMS container"
+      cms_image_name:
+        required: true
+        type: string
+        description: "Docker image name for the CMS"
+    secrets:
+      LINUX_SSH_PRIVATE_KEY_CICD:
+        required: true
+      LINUX_BOTCICDGHA_USERNAME:
+        required: true
+      LINUX_SERVER_IPADDRESS:
+        required: true
+      GHPAT_AS_CICD_SECRET:
+        required: true
+      PAYLOAD__SECRET_ENV_FILE:
+        required: true
+    outputs:
+      had_changes:
+        description: "Whether changes were detected"
+        value: ${{ jobs.job-deploy--cms-fe.outputs.changes_detected }}
+      action_taken:
+        description: "Action taken during deployment"
+        value: ${{ jobs.job-deploy--cms-fe.outputs.action }}
+      changed_files:
+        description: "List of files that were changed"
+        value: ${{ jobs.job-deploy--cms-fe.outputs.changed_files }}
+      changed_files_count:
+        description: "Number of files that were changed"
+        value: ${{ jobs.job-deploy--cms-fe.outputs.changed_files_count }}
+jobs:
+  job-deploy--cms-fe:
+    environment: production
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write # Needed for artifact operations
+    outputs:
+      changes_detected: ${{ steps.check-changes.outputs.changes }}
+      action: ${{ steps.step-deploy--cms-fe.outputs.action_taken }}
+      changed_files: ${{ steps.changed-files.outputs.files }}
+      changed_files_count: ${{ steps.changed-files.outputs.count }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Full history needed for better change detection
+
+      # Setup GitHub CLI for artifact operations
+      - name: Setup GitHub CLI
+        run: |
+          echo "Setting up GitHub CLI authentication..."
+          echo ${{ github.token }} | gh auth login --with-token
+
+      # Download last successful deployment marker if it exists
+      - name: Download last successful deployment marker
+        id: download-marker
+        continue-on-error: true # Continue if no marker exists yet
+        run: |
+          mkdir -p ./deployment-markers
+
+          # Try to download the artifact using the GitHub CLI
+          echo "Attempting to download latest cms-fe-last-deployed-commit artifact..."
+          gh run download --name cms-fe-last-deployed-commit --dir ./deployment-markers --repo ${{ github.repository }} || true
+
+          # Check if the download was successful
+          if [ -f "./deployment-markers/last-cms-fe-commit.txt" ]; then
+            echo "✅ Successfully downloaded previous deployment marker"
+          else
+            echo "⚠️ No previous deployment marker found or download failed"
+          fi
+
+      # Determine last deployed commit hash
+      - name: Get last deployed commit hash
+        id: get-last-commit
+        run: |
+          if [ -f "./deployment-markers/last-cms-fe-commit.txt" ]; then
+            LAST_COMMIT=$(cat ./deployment-markers/last-cms-fe-commit.txt)
+            echo "Last successfully deployed frontend commit: $LAST_COMMIT"
+            echo "last_commit=$LAST_COMMIT" >> $GITHUB_OUTPUT
+          else
+            # If no marker exists, get a commit far back enough to capture all changes
+            # This will trigger a build on first run
+            LAST_COMMIT=$(git rev-list --max-parents=0 HEAD)
+            echo "No previous deployment marker found. Using initial commit: $LAST_COMMIT"
+            echo "last_commit=$LAST_COMMIT" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check PayloadCMS Directory Changes
+        id: check-changes
+        run: |
+          echo "Checking for code changes in PayloadCMS directory since last deployment..."
+
+          # Debug: Show the commit we're comparing against
+          echo "Comparing current commit with: ${{ steps.get-last-commit.outputs.last_commit }}"
+
+          # Check for changes between last deployed commit and current HEAD
+          # Only show file names, not content
+          CHANGES=$(git diff --name-only ${{ steps.get-last-commit.outputs.last_commit }} HEAD -- ./${{ inputs.cms_dir_name }})
+
+          if [ -z "$CHANGES" ]; then
+            echo "No changes detected in ${{ inputs.cms_dir_name }} directory since last deployment"
+            echo "changes=false" >> $GITHUB_OUTPUT
+          else
+            echo "Changes detected in ${{ inputs.cms_dir_name }} directory since last deployment:"
+            # Only show file names that changed, not their content
+            echo "$CHANGES"
+            echo "changes=true" >> $GITHUB_OUTPUT
+            
+            # Save changed files list to be accessed by the deployment summary
+            echo "$CHANGES" > ./cms-fe-changed-files.txt
+          fi
+
+      # Save changed files to an output instead of using artifacts
+      - name: Set changed files as output
+        if: steps.check-changes.outputs.changes == 'true'
+        id: changed-files
+        run: |
+          # Use GitHub's multiline output syntax
+          echo "files<<EOF" >> $GITHUB_OUTPUT
+          cat ./cms-fe-changed-files.txt >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          # Count the number of changed files correctly
+          CHANGE_COUNT=$(cat ./cms-fe-changed-files.txt | wc -l | xargs)
+          echo "count=$CHANGE_COUNT" >> $GITHUB_OUTPUT
+
+      - name: Install YQ
+        run: |
+          wget https://github.com/mikefarah/yq/releases/download/v4.34.1/yq_linux_amd64 -O /usr/local/bin/yq
+          chmod +x /usr/local/bin/yq
+
+      - name: Load Environment Defaults
+        id: env-defaults
+        run: |
+          # Extract PayloadCMS environment variables from defaults file
+          PAYLOADCMS_DEFAULTS=$(yq e '.payloadcms_defaults' .github/defaults/env-defaults.yml)
+          echo "$PAYLOADCMS_DEFAULTS" > ./${{ inputs.cms_dir_name }}/env-defaults.env
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHPAT_AS_CICD_SECRET }}
+
+      - name: Ensure entrypoint script is executable
+        id: verify-entrypoint
+        if: steps.check-changes.outputs.changes == 'true'
+        run: chmod +x ./${{ inputs.cms_dir_name }}/entrypoint.sh
+
+      - name: Build Image with Default Secrets, then Publish
+        id: build-publish
+        if: steps.check-changes.outputs.changes == 'true'
+        run: |
+          echo "Building and publishing frontend Docker image..."
+
+          # Build the PayloadCMS Docker image with env file
+          docker build \
+            --build-arg NODE_ENV=production \
+            --build-arg ENV_FILE=env-defaults.env \
+            --build-arg SKIP_NEXTJS_BUILD=true \
+            --no-cache \
+            -t ${{ inputs.cms_image_name }} \
+            ./${{ inputs.cms_dir_name }}
+            
+          # Push the Docker image to GitHub Container Registry
+          docker push ${{ inputs.cms_image_name }}
+
+          #  Delete local env var file (defaults) after transfer
+          rm ./${{ inputs.cms_dir_name }}/env-defaults.env
+
+          echo "BUILT=true" >> $GITHUB_ENV
+          echo "PUSHED=true" >> $GITHUB_ENV
+          echo "build_status=success" >> $GITHUB_OUTPUT
+
+      - name: Create production migrations directory on server if it doesn't exist
+        if: steps.check-changes.outputs.changes == 'true'
+        env:
+          SSH_KEY: ${{ secrets.LINUX_SSH_PRIVATE_KEY_CICD }}
+          SSH_USER: ${{ secrets.LINUX_BOTCICDGHA_USERNAME }}
+          SERVER_IP: ${{ secrets.LINUX_SERVER_IPADDRESS }}
+        run: |
+          # Setup SSH
+          mkdir -p ~/.ssh/
+          echo "$SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          cat >>~/.ssh/config <<END
+          Host prod
+            HostName $SERVER_IP
+            User $SSH_USER
+            IdentityFile ~/.ssh/id_ed25519
+            StrictHostKeyChecking no
+          END
+
+          # Create migrations directory ON THE HOST SERVER if it doesn't exist
+          # Note: This is necessary for bind mounts because:
+          # 1. It ensures the host directory exists before container startup
+          # 2. It sets proper ownership of the directory as the SSH user
+          # 3. While Docker can create it automatically, this gives us control over permissions
+          # 4. The entrypoint.sh also creates this directory inside the container as a backup
+          # the bind mounts will be located at: 
+          # /home/<githubCICDUsername>/payloadcms-052225blue-cms__migrations
+          # /home/<githubCICDUsername>/payloadcms-052225blue-cms__media
+          ssh prod "mkdir -p ~/${{ inputs.topic_name }}-${{ inputs.deployment_date }}${{ inputs.deployment_color }}-cms__migrations"
+
+          # We'll also need a media directory to be persisted as a bind mount
+          ssh prod "mkdir -p ~/${{ inputs.topic_name }}-${{ inputs.deployment_date }}${{ inputs.deployment_color }}-cms__media"
+
+      - name: SSH in and Deploy Updated CMS-Frontend image with Prod Secrets
+        id: step-deploy--cms-fe
+        env:
+          SSH_KEY: ${{ secrets.LINUX_SSH_PRIVATE_KEY_CICD }}
+          SSH_USER: ${{ secrets.LINUX_BOTCICDGHA_USERNAME }}
+          SERVER_IP: ${{ secrets.LINUX_SERVER_IPADDRESS }}
+          GHPAT: ${{ secrets.GHPAT_AS_CICD_SECRET }}
+          PAYLOADCMS__PROD_ENV: ${{ secrets.PAYLOAD__SECRET_ENV_FILE }}
+        run: |
+          # Setup SSH - simplified approach
+          mkdir -p ~/.ssh/
+          echo "$SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+          # Create SSH config using heredoc for consistency
+          cat >>~/.ssh/config <<END
+          Host prod
+            HostName $SERVER_IP
+            User $SSH_USER
+            IdentityFile ~/.ssh/id_ed25519
+            StrictHostKeyChecking no
+          END
+                
+          # Verify connection to server with simple commands
+          echo "Verifying server connection..."
+          ssh prod "hostname && which docker && uptime"
+
+          # First authenticate with GHCR on the remote server
+          echo "Authenticating with GitHub Container Registry on remote server..."
+          ssh prod "echo '$GHPAT' | docker login ghcr.io -u ${{ github.actor }} --password-stdin"
+
+          # Create a temporary env file on the remote server
+          echo "Creating temporary environment file..."
+          ssh prod "echo '$PAYLOADCMS__PROD_ENV' > ~/${{ inputs.topic_name }}-${{ inputs.deployment_date }}${{ inputs.deployment_color }}-cms-env.env"
+
+          # Ensure Docker network exists (create if it doesn't)
+          ssh prod "docker network ls --filter name=private-${{ inputs.topic_name }}-${{ inputs.deployment_color }}-dockernet -q | grep -q . || docker network create private-${{ inputs.topic_name }}-${{ inputs.deployment_color }}-dockernet"
+
+          # Deploy to remote server with environment file
+          # The critical addition here is the bind mount for migration & media directories
+          ssh prod "docker pull ${{ inputs.cms_image_name }} && \
+                    docker rm -f ${{ inputs.cms_container_name }} || true && \
+                    docker run -d \
+                      --name ${{ inputs.cms_container_name }} \
+                      --network private-${{ inputs.topic_name }}-${{ inputs.deployment_color }}-dockernet \
+                      --network main-network--npm020325 \
+                      -p 3000:3000 \
+                      --env-file ~/${{ inputs.topic_name }}-${{ inputs.deployment_date }}${{ inputs.deployment_color }}-cms-env.env \
+                      -v ~/${{ inputs.topic_name }}-${{ inputs.deployment_date }}${{ inputs.deployment_color }}-cms__migrations:/app/src/migrations \
+                      -v ~/${{ inputs.topic_name }}-${{ inputs.deployment_date }}${{ inputs.deployment_color }}-cms__media:/app/public/media \
+                      ${{ inputs.cms_image_name }}"
+
+          echo "Deleting temporarily created prod env file..."
+          ssh prod "rm ~/${{ inputs.topic_name }}-${{ inputs.deployment_date }}${{ inputs.deployment_color }}-cms-env.env"
+
+          if [ "${{ steps.check-changes.outputs.changes }}" == "true" ]; then
+            echo "Deploying new frontend version..."
+            echo "action_taken=New version deployed" >> $GITHUB_OUTPUT
+            echo "deploy_status=success" >> $GITHUB_ENV
+          else
+            echo "No changes detected, skipping deployment"
+            echo "action_taken=No deployment needed" >> $GITHUB_OUTPUT
+          fi
+
+      # Save deployment marker if deploy was successful
+      - name: Save deployment marker
+        if: steps.check-changes.outputs.changes == 'true' && env.deploy_status == 'success'
+        run: |
+          mkdir -p ./deployment-markers
+          git rev-parse HEAD > ./deployment-markers/last-cms-fe-commit.txt
+          echo "Saved current commit as last deployed commit marker"
+
+      # Upload the marker as an artifact
+      - name: Upload deployment marker
+        if: steps.check-changes.outputs.changes == 'true' && env.deploy_status == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: cms-fe-last-deployed-commit
+          path: ./deployment-markers/last-cms-fe-commit.txt
+          retention-days: 90
+
+      - name: Status Report
+        run: |
+          echo "Frontend Deployment Status:"
+          echo "Changes Detected: ${{ steps.check-changes.outputs.changes }}"
+          echo "Action Taken: ${{ steps.step-deploy--cms-fe.outputs.action_taken }}"

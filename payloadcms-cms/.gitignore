@@ -1,0 +1,19 @@
+build
+dist / media
+node_modules
+.DS_Store
+# .env
+.next
+.vercel
+
+# Payload default media upload directory
+public/media/
+
+public/robots.txt
+public/sitemap*.xml
+
+# The above items were default to payload scaffold.
+# They exlucded the /src/components/Media dir.  Let's fix that:
+# include the Media component directory
+!src/components/Media/
+!src/components/Media/**

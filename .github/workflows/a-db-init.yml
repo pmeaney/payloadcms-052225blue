@@ -1,0 +1,165 @@
+name: Database Check and Init Simulation
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+        description: "The deployment environment to use"
+      topic_name:
+        required: true
+        type: string
+        description: "The base name of the project"
+      deployment_date:
+        required: true
+        type: string
+        description: "Deployment date identifier (e.g., 052225)"
+      deployment_color:
+        required: true
+        type: string
+        description: "Deployment color (e.g., blue, blue, green)"
+      db_container_name:
+        required: true
+        type: string
+        description: "Name for the database container"
+    secrets:
+      LINUX_SSH_PRIVATE_KEY_CICD:
+        required: true
+      LINUX_BOTCICDGHA_USERNAME:
+        required: true
+      LINUX_SERVER_IPADDRESS:
+        required: true
+      POSTGRES__SECRET_ENV_FILE:
+        required: true
+    outputs:
+      needs_depl__db:
+        description: "Whether DB needs deployment"
+        value: ${{ jobs.check-db.outputs.needs_depl__db }}
+
+jobs:
+  check-db:
+    environment: production
+    runs-on: ubuntu-latest
+    outputs:
+      needs_depl__db: ${{ steps.check-depl-needed--db.outputs.needs_depl__db }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Check DB container status
+      - name: Check if Postgres Deployment needed
+        id: check-depl-needed--db
+        env:
+          SSH_KEY: ${{ secrets.LINUX_SSH_PRIVATE_KEY_CICD }}
+          SSH_USER: ${{ secrets.LINUX_BOTCICDGHA_USERNAME }}
+          SERVER_IP: ${{ secrets.LINUX_SERVER_IPADDRESS }}
+          DEPLOY_POSTGRES_NEEDED: true
+        run: |
+          # Debug environment variables
+          echo "Debug - Checking if variables are set:"
+          echo "SSH_USER is set: $(if [ -n "$SSH_USER" ]; then echo "YES"; else echo "NO"; fi)"
+          echo "SERVER_IP is set: $(if [ -n "$SERVER_IP" ]; then echo "YES"; else echo "NO"; fi)"
+
+          # Setup SSH
+          mkdir -p ~/.ssh/
+          echo "$SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          cat >>~/.ssh/config <<END
+          Host prod
+            HostName $SERVER_IP
+            User $SSH_USER
+            IdentityFile ~/.ssh/id_ed25519
+            StrictHostKeyChecking no
+          END
+
+          # Check if Postgres container exists
+          CONTAINER_EXISTS=$(ssh prod "docker ps -a --format '{{.Names}}' | grep -q '^${{ inputs.db_container_name }}$' && echo 'true' || echo 'false'")
+
+          if [ "$CONTAINER_EXISTS" = "false" ] && [ "${{ env.DEPLOY_POSTGRES_NEEDED }}" = "true" ]; then
+            echo "⚠️ No Postgres container found & desire to deploy it is ${{ env.DEPLOY_POSTGRES_NEEDED }}"
+            echo "needs_depl__db=true" >> $GITHUB_OUTPUT
+          else
+            echo "✅ Postgres container exists. Will skip Postgres setup."
+            echo "needs_depl__db=false" >> $GITHUB_OUTPUT
+          fi
+
+      # Note: Ideally we only create the DB container once-- so no need to publish.
+      # Also, no need to build the image-- we're using the standard postgres image.
+      # Therefore, we simply need to deloy the standard postgres image, as a container, and inject our prod env vars into it
+      - name: Deploy DB Container on remote server
+        if: steps.check-depl-needed--db.outputs.needs_depl__db == 'true'
+        env:
+          SSH_KEY: ${{ secrets.LINUX_SSH_PRIVATE_KEY_CICD }}
+          SSH_USER: ${{ secrets.LINUX_BOTCICDGHA_USERNAME }}
+          SERVER_IP: ${{ secrets.LINUX_SERVER_IPADDRESS }}
+          POSTGRES__PROD_ENV: ${{ secrets.POSTGRES__SECRET_ENV_FILE }}
+          DEPLOY_POSTGRES_NEEDED: true
+        run: |
+          # Debug environment variables
+          echo "Debug - Checking if variables are set:"
+          echo "SSH_USER is set: $(if [ -n "$SSH_USER" ]; then echo "YES"; else echo "NO"; fi)"
+          echo "SERVER_IP is set: $(if [ -n "$SERVER_IP" ]; then echo "YES"; else echo "NO"; fi)"
+
+          # Setup SSH
+          mkdir -p ~/.ssh/
+          echo "$SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          cat >>~/.ssh/config <<END
+          Host prod
+            HostName $SERVER_IP
+            User $SSH_USER
+            IdentityFile ~/.ssh/id_ed25519
+            StrictHostKeyChecking no
+          END
+
+          # Create directory on remote server for the temporary prod env file
+          ssh prod "mkdir -p ~/${{ inputs.topic_name }}-${{ inputs.deployment_date }}${{ inputs.deployment_color }}-db"
+
+          # Create the temporary prod env file directly on the remote server
+          # Echo the env var content with proper quoting for multiline preservation
+          ssh prod "echo '$POSTGRES__PROD_ENV' > ~/${{ inputs.topic_name }}-${{ inputs.deployment_date }}${{ inputs.deployment_color }}-db/postgres-env-prod.env"
+
+          # Create Docker network if it doesn't exist
+          # This network is for PayloadCMS & Postgres to communicate, hence "private" in its name
+          ssh prod "docker network ls --filter name=private-${{ inputs.topic_name }}-${{ inputs.deployment_color }}-dockernet -q | grep -q . || docker network create private-${{ inputs.topic_name }}-${{ inputs.deployment_color }}-dockernet"
+
+          # Create volumes if they don't exist
+          ssh prod "docker volume inspect ${{ inputs.topic_name }}-${{ inputs.deployment_date }}${{ inputs.deployment_color }}-db-data >/dev/null 2>&1 || docker volume create ${{ inputs.topic_name }}-${{ inputs.deployment_date }}${{ inputs.deployment_color }}-db-data"
+          ssh prod "docker volume inspect ${{ inputs.topic_name }}-${{ inputs.deployment_date }}${{ inputs.deployment_color }}-db-init-scripts >/dev/null 2>&1 || docker volume create ${{ inputs.topic_name }}-${{ inputs.deployment_date }}${{ inputs.deployment_color }}-db-init-scripts"
+
+          # Run the container on the remote server
+          ssh prod "\
+          docker run -d \
+            --name ${{ inputs.db_container_name }} \
+            --network private-${{ inputs.topic_name }}-${{ inputs.deployment_color }}-dockernet \
+            --env-file ~/${{ inputs.topic_name }}-${{ inputs.deployment_date }}${{ inputs.deployment_color }}-db/postgres-env-prod.env \
+            -p 5432:5432 \
+            -v ${{ inputs.topic_name }}-${{ inputs.deployment_date }}${{ inputs.deployment_color }}-db-data:/var/lib/postgresql/data \
+            -v ${{ inputs.topic_name }}-${{ inputs.deployment_date }}${{ inputs.deployment_color }}-db-init-scripts:/docker-entrypoint-initdb.d \
+            postgres:17"
+
+          ssh prod "rm ~/${{ inputs.topic_name }}-${{ inputs.deployment_date }}${{ inputs.deployment_color }}-db/postgres-env-prod.env"
+
+          # Verify the container is running in a separate command
+          CONTAINER_STATUS=$(ssh prod "docker ps -f name=${{ inputs.db_container_name }} --format '{{.Status}}'")
+          if [ -n "$CONTAINER_STATUS" ]; then
+            echo "Database container successfully created and running"
+            echo "DB_CREATED=true" >> $GITHUB_ENV
+          else
+            echo "Failed to create database container"
+            exit 1
+          fi
+
+      # Final status output
+      - name: Status Report
+        run: |
+          if [[ "${{ steps.check-depl-needed--db.outputs.needs_depl__db }}" == "false" ]]; then
+            echo "Database container already existed"
+          elif [[ "$DB_CREATED" == "true" ]]; then
+            echo "Database container was created"
+          else
+            echo "Failed to verify database status"
+          fi

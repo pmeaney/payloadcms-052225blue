@@ -1,0 +1,19 @@
+# Using this with initial run of payload cms, just to make sure things work
+# prior to rolling this into the docker-compose.dev.yml for local dev work
+version: "3.8"
+services:
+  temporarypgforpayloadcms:
+    image: postgres:17
+    container_name: temporarypgforpayloadcms
+    environment:
+      POSTGRES_USER: payloadcms-user
+      POSTGRES_PASSWORD: payloadcmsPass
+      POSTGRES_DB: payloadcms-db
+    ports:
+      - "5432:5432"
+    volumes:
+      - temporary_pg_data_payloadcms:/var/lib/postgresql/data
+
+volumes:
+  temporary_pg_data_payloadcms:
+    name: temporary_pg_data_payloadcms
