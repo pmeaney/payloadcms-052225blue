@@ -11,9 +11,9 @@ yq '.payloadcms_defaults' .github/defaults/env-defaults.yml | grep -v "SKIP"
 
 # Setup the secrets files on Github - environment: production
 # For POSTGRES__SECRET_ENV_FILE (lines 12-14)
-yq '.postgres_defaults' .github/defaults/env-defaults.yml | gh secret set POSTGRES__SECRET_ENV_FILE --env production --body "$(cat)"
+yq '.postgres_defaults' .github/defaults/env-defaults.yml | gh secret set POSTGRES__SECRET_ENV_FILE --env production
 # For PAYLOAD__SECRET_ENV_FILE (lines 20-26, excluding the last two items with "SKIP")
-yq '.payloadcms_defaults' .github/defaults/env-defaults.yml | grep -v "SKIP" | gh secret set PAYLOAD__SECRET_ENV_FILE --env production --body "$(cat)"
+yq '.payloadcms_defaults' .github/defaults/env-defaults.yml | grep -v "SKIP" | gh secret set PAYLOAD__SECRET_ENV_FILE --env production
 
 # NOTE:
 # If you see "cat: stdin: Input/output error" it's actually misleading.
