@@ -64,7 +64,7 @@ jobs:
       actions: write # Needed for artifact operations
     outputs:
       changes_detected: ${{ steps.check-changes.outputs.changes }}
-      action: ${{ steps.step-deploy--cms-fe.outputs.action_taken }}
+      action: ${{ steps.step-deploy--cms-fe.outputs.action_taken || steps.no-deployment.outputs.action_taken }}
       changed_files: ${{ steps.changed-files.outputs.files }}
       changed_files_count: ${{ steps.changed-files.outputs.count }}
     steps:
@@ -96,6 +96,32 @@ jobs:
             echo "⚠️ No previous deployment marker found or download failed"
           fi
 
+      # Check if the CMS container exists on the server
+      - name: Check if CMS Container exists on server
+        id: check-container-exists
+        env:
+          SSH_KEY: ${{ secrets.LINUX_SSH_PRIVATE_KEY_CICD }}
+          SSH_USER: ${{ secrets.LINUX_BOTCICDGHA_USERNAME }}
+          SERVER_IP: ${{ secrets.LINUX_SERVER_IPADDRESS }}
+        run: |
+          # Setup SSH
+          mkdir -p ~/.ssh/
+          echo "$SSH_KEY" | tr -d '\r' > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          cat >>~/.ssh/config <<END
+          Host prod
+            HostName $SERVER_IP
+            User $SSH_USER
+            IdentityFile ~/.ssh/id_ed25519
+            StrictHostKeyChecking no
+          END
+
+          # Check if CMS container exists (running or stopped)
+          CONTAINER_EXISTS=$(ssh prod "docker ps -a --format '{{.Names}}' | grep -q '^${{ inputs.cms_container_name }}$' && echo 'true' || echo 'false'")
+
+          echo "container_exists=$CONTAINER_EXISTS" >> $GITHUB_OUTPUT
+          echo "Container exists: $CONTAINER_EXISTS"
+
       # Determine last deployed commit hash
       - name: Get last deployed commit hash
         id: get-last-commit
@@ -115,25 +141,52 @@ jobs:
       - name: Check PayloadCMS Directory Changes
         id: check-changes
         run: |
-          echo "Checking for code changes in PayloadCMS directory since last deployment..."
+          echo "=== Running checks ==="
 
-          # Debug: Show the commit we're comparing against
-          echo "Comparing current commit with: ${{ steps.get-last-commit.outputs.last_commit }}"
+          # STEP 1: Show container status from previous check
+          CONTAINER_EXISTS="${{ steps.check-container-exists.outputs.container_exists }}"
+          echo "* Container exists: $CONTAINER_EXISTS"
 
-          # Check for changes between last deployed commit and current HEAD
-          # Only show file names, not content
-          CHANGES=$(git diff --name-only ${{ steps.get-last-commit.outputs.last_commit }} HEAD -- ./${{ inputs.cms_dir_name }})
+          # STEP 2: Show commit comparison with abbreviated hashes
+          CURRENT_COMMIT=$(git rev-parse HEAD)
+          CURRENT_COMMIT_SHORT=$(git rev-parse --short HEAD)
+          LAST_COMMIT="${{ steps.get-last-commit.outputs.last_commit }}"
+          LAST_COMMIT_SHORT=$(git rev-parse --short $LAST_COMMIT)
+
+          echo "* Comparing current commit $CURRENT_COMMIT_SHORT with last deployed $LAST_COMMIT_SHORT"
+
+          # STEP 3: Check for actual code changes in the CMS directory
+          CHANGES=$(git diff --name-only $LAST_COMMIT HEAD -- ./${{ inputs.cms_dir_name }})
+
+          # STEP 4: Determine deployment action based on two factors:
+          # Factor A: Are there code changes?
+          # Factor B: Does the container exist?
 
           if [ -z "$CHANGES" ]; then
-            echo "No changes detected in ${{ inputs.cms_dir_name }} directory since last deployment"
-            echo "changes=false" >> $GITHUB_OUTPUT
+            # NO CODE CHANGES detected
+            echo "* Changes detected in payloadcms-cms directory since last deployment? NO"
+            
+            if [ "$CONTAINER_EXISTS" = "false" ]; then
+              # DEPLOYMENT LOGIC: No code changes BUT container missing
+              # ACTION: Build current commit version and deploy (container needs to exist)
+              echo "* Container doesn't exist - forcing deployment despite no code changes"
+              echo "* DECISION: Will build current commit version and deploy"
+              echo "changes=true" >> $GITHUB_OUTPUT
+              echo "force_deploy_reason=Container does not exist" >> $GITHUB_OUTPUT
+            else
+              # DEPLOYMENT LOGIC: No code changes AND container exists
+              # ACTION: No deployment needed
+              echo "* Container exists and no code changes detected"
+              echo "* DECISION: No deployment needed"
+              echo "changes=false" >> $GITHUB_OUTPUT
+            fi
           else
-            echo "Changes detected in ${{ inputs.cms_dir_name }} directory since last deployment:"
-            # Only show file names that changed, not their content
-            echo "$CHANGES"
+            # CODE CHANGES detected
+            echo "* Changes detected in payloadcms-cms directory since last deployment? YES"
+            echo "* DECISION: Will build current commit version and deploy"
             echo "changes=true" >> $GITHUB_OUTPUT
             
-            # Save changed files list to be accessed by the deployment summary
+            # Save changed files list for deployment summary
             echo "$CHANGES" > ./cms-fe-changed-files.txt
           fi
 
@@ -235,6 +288,7 @@ jobs:
 
       - name: SSH in and Deploy Updated CMS-Frontend image with Prod Secrets
         id: step-deploy--cms-fe
+        if: steps.check-changes.outputs.changes == 'true'
         env:
           SSH_KEY: ${{ secrets.LINUX_SSH_PRIVATE_KEY_CICD }}
           SSH_USER: ${{ secrets.LINUX_BOTCICDGHA_USERNAME }}
@@ -288,14 +342,23 @@ jobs:
           echo "Deleting temporarily created prod env file..."
           ssh prod "rm ~/${{ inputs.topic_name }}-${{ inputs.deployment_date }}${{ inputs.deployment_color }}-cms-env.env"
 
-          if [ "${{ steps.check-changes.outputs.changes }}" == "true" ]; then
-            echo "Deploying new frontend version..."
-            echo "action_taken=New version deployed" >> $GITHUB_OUTPUT
-            echo "deploy_status=success" >> $GITHUB_ENV
+          # Deployment successful - set appropriate action message
+          if [ -n "${{ steps.check-changes.outputs.force_deploy_reason }}" ]; then
+            # This was a forced deployment due to missing container
+            echo "action_taken=Deployed: ${{ steps.check-changes.outputs.force_deploy_reason }}" >> $GITHUB_OUTPUT
           else
-            echo "No changes detected, skipping deployment"
-            echo "action_taken=No deployment needed" >> $GITHUB_OUTPUT
+            # This was a normal deployment due to code changes  
+            echo "action_taken=New version deployed" >> $GITHUB_OUTPUT
           fi
+          echo "deploy_status=success" >> $GITHUB_ENV
+
+      # Set no deployment action for when no deployment is needed
+      - name: Set no deployment action
+        if: steps.check-changes.outputs.changes == 'false'
+        id: no-deployment
+        run: |
+          # No deployment was needed - container exists and no code changes
+          echo "action_taken=No deployment needed - container exists and no code changes" >> $GITHUB_OUTPUT
 
       # Save deployment marker if deploy was successful
       - name: Save deployment marker
@@ -318,4 +381,4 @@ jobs:
         run: |
           echo "Frontend Deployment Status:"
           echo "Changes Detected: ${{ steps.check-changes.outputs.changes }}"
-          echo "Action Taken: ${{ steps.step-deploy--cms-fe.outputs.action_taken }}"
+          echo "Action Taken: ${{ steps.step-deploy--cms-fe.outputs.action_taken || steps.no-deployment.outputs.action_taken }}"
