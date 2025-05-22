@@ -32,20 +32,30 @@ yq '.payloadcms_defaults' .github/defaults/env-defaults.yml | grep -v "SKIP" | g
 #   - the desired name for the items to set in the github repo secrets 
 #     (these correspond with the various keys used by the CICD process)
 #
+#
+# CHECK
 # ITEM_1P - Define the name of the 1Password item (secure note) which contains the secrets.
 ITEM_1P="debblue - 052225blue"
 
+
+### These first two items are the most likely to change values, 
+#   since they have a date string and/or color in their names
+# CHECK - Ensure "id_ed25519_052225blue_cicd_np" matches the FILE NAME. LINUX_SSH_PRIVATE_KEY_CICD already matches what is in CICD
+# Set LINUX_SSH_PRIVATE_KEY_CICD as a repository secret (reading from ssh private key file on dev laptop)
+gh secret set LINUX_SSH_PRIVATE_KEY_CICD --body "$(cat ~/.ssh/id_ed25519_052225blue_cicd_np)"
+
+# CHECK - Ensure "GHPATCICD_RpoWkflo_WRDpckgs_052225" matches the 1pass item. GHPATCICD_RPOWKFLO_WRDPCKGS already matches what is in CICD
+# Set GHPATCICD_RPOWKFLO_WRDPCKGS as a repository secret
+GHPATCICD_TOKEN=$(op item get "${ITEM_1P}" --fields label=GHPATCICD_RpoWkflo_WRDpckgs_052225)
+gh secret set GHPATCICD_RPOWKFLO_WRDPCKGS --body "${GHPATCICD_TOKEN}"
+
+### These next ones are typically unlikely to change
+# CHECK
 # Set LINUX_BOTCICDGHA_USERNAME as a repository secret
 LINUX_BOTCICDGHA_USERNAME=$(op item get "${ITEM_1P}" --fields label=LINUX_BOTCICDGHA_USERNAME)
 gh secret set LINUX_BOTCICDGHA_USERNAME --body "${LINUX_BOTCICDGHA_USERNAME}"
 
+# CHECK
 # Set LINUX_SERVER_IPADDRESS as a repository secret
 LINUX_SERVER_IPADDRESS=$(op item get "${ITEM_1P}" --fields label=LINUX_SERVER_IPADDRESS)
 gh secret set LINUX_SERVER_IPADDRESS --body "${LINUX_SERVER_IPADDRESS}"
-
-# Set LINUX_SSH_PRIVATE_KEY_CICD as a repository secret (reading from file)
-gh secret set LINUX_SSH_PRIVATE_KEY_CICD --body "$(cat ~/.ssh/id_ed25519_051425_gh_cicd_np)"
-
-# Set GHPATCICD_RPOWKFLO_WRDPCKGS as a repository secret
-GHPATCICD_TOKEN=$(op item get "${ITEM_1P}" --fields label=GHPATCICD_RpoWkflo_WRDpckgs_052225)
-gh secret set GHPATCICD_RPOWKFLO_WRDPCKGS --body "${GHPATCICD_TOKEN}"
