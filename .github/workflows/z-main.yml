@@ -27,7 +27,7 @@ jobs:
       environment: production
       topic_name: payloadcms
       deployment_date: 052225
-      deployment_color: blugit inite
+      deployment_color: blue
       db_container_name: payloadcms-052225blue-db
     permissions:
       contents: read
