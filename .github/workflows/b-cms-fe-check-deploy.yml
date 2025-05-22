@@ -179,6 +179,7 @@ jobs:
               echo "* Container exists and no code changes detected"
               echo "* DECISION: No deployment needed"
               echo "changes=false" >> $GITHUB_OUTPUT
+              echo "no changes detected" > ./cms-fe-changed-files.txt
             fi
           else
             # CODE CHANGES detected
