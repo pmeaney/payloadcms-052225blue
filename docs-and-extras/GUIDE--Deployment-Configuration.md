@@ -143,7 +143,27 @@ POSTGRES_PASSWORD=payloadcmsPass
 
 No changes needed to the individual workflow files (`a-db-init.yml` and `b-cms-fe-check-deploy.yml`) because they accept parameters from the main workflow file.
 
-# ALL DONE with updates! Below shows the resources which will be created.
+## CI/CD Deployment Logic
+
+The CI/CD pipeline (`b-cms-fe-check-deploy.yml`) determines when to deploy the CMS container (`payloadcms-052225blue-cms`) based on the following logic:
+
+- **Initial Deployment (No Container)**:
+  - If the CMS container does not exist on the deployment server, the pipeline deploys the current commit (`HEAD`) without checking for changes.
+  - All files in the `payloadcms-cms` directory are listed in the deployment summary for reference.
+  - This ensures the CMS is deployed when setting up a new environment or after a container is removed.
+
+- **Subsequent Deployments (Container Exists, Artifact Exists)**:
+  - If the CMS container exists and a deployment marker artifact (`cms-fe-last-deployed-commit`) is found, the pipeline checks for changes in the `payloadcms-cms` directory since the last deployed commit using `git diff`.
+  - If changes are detected (e.g., a comment added to a file), the pipeline deploys the new version and updates the artifact with the current commit hash.
+  - If no changes are detected, the pipeline skips deployment.
+
+- **Container Exists but No Artifact (Recovery Case)**:
+  - If the CMS container exists but no deployment marker artifact is found (e.g., due to a failed previous run or manual deletion), the pipeline skips deployment to avoid unintended changes, logging a warning.
+  - **Note for Developers**: If you want to force a deployment when the container exists but no artifact is found (e.g., to recover from a failed run), modify the `else` block in the "Check PayloadCMS Directory Changes" step of `b-cms-fe-check-deploy.yml` to deploy the current commit and list all files in `payloadcms-cms` for the summary.
+  - This ensures the pipeline remains safe by default but can be adjusted for recovery scenarios.
+
+- **Deployment Summary**:
+  - The `z-main.yml` workflow generates a detailed deployment summary, including the commit hash, changed files, and actions taken (e.g., "Deployed: Initial deployment - no container exists" or "No deployment needed - container exists and no code changes").
 
 ## Resources Created By blue Deployment
 

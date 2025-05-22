@@ -138,7 +138,35 @@ jobs:
           fi
           echo "" >> $GITHUB_STEP_SUMMARY
 
+          # CMS Decision Matrix
+          echo "### CMS Deployment Decision Matrix" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Container Exists? | Artifact Exists? | Changes Detected? | Decision | Reason |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------------------|------------------|-------------------|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          if [[ "${{ needs.cms-fe.outputs.action_taken }}" == *"Initial deployment"* ]]; then
+            echo "| No                | Any              | Any               | **Build & Deploy** | Initial deployment - no container exists |" >> $GITHUB_STEP_SUMMARY
+            echo "| Yes               | Yes              | Yes               | Build & Deploy     | Code changes detected in ${CMS_DIR_NAME} |" >> $GITHUB_STEP_SUMMARY
+            echo "| Yes               | Yes              | No                | No Build/Deploy    | No code changes detected |" >> $GITHUB_STEP_SUMMARY
+            echo "| Yes               | No               | N/A               | No Build/Deploy    | Container exists but no artifact (incomplete state) |" >> $GITHUB_STEP_SUMMARY
+          elif [[ "${{ needs.cms-fe.outputs.had_changes }}" == "true" ]]; then
+            echo "| No                | Any              | Any               | Build & Deploy     | Initial deployment - no container exists |" >> $GITHUB_STEP_SUMMARY
+            echo "| Yes               | Yes              | Yes               | **Build & Deploy** | Code changes detected in ${CMS_DIR_NAME} |" >> $GITHUB_STEP_SUMMARY
+            echo "| Yes               | Yes              | No                | No Build/Deploy    | No code changes detected |" >> $GITHUB_STEP_SUMMARY
+            echo "| Yes               | No               | N/A               | No Build/Deploy    | Container exists but no artifact (incomplete state) |" >> $GITHUB_STEP_SUMMARY
+          elif [[ "${{ needs.cms-fe.outputs.action_taken }}" == *"No deployment needed"* && "${{ needs.cms-fe.outputs.had_changes }}" == "false" && -f "./deployment-markers/last-cms-fe-commit.txt" ]]; then
+            echo "| No                | Any              | Any               | Build & Deploy     | Initial deployment - no container exists |" >> $GITHUB_STEP_SUMMARY
+            echo "| Yes               | Yes              | Yes               | Build & Deploy     | Code changes detected in ${CMS_DIR_NAME} |" >> $GITHUB_STEP_SUMMARY
+            echo "| Yes               | Yes              | No                | **No Build/Deploy** | No code changes detected |" >> $GITHUB_STEP_SUMMARY
+            echo "| Yes               | No               | N/A               | No Build/Deploy    | Container exists but no artifact (incomplete state) |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| No                | Any              | Any               | Build & Deploy     | Initial deployment - no container exists |" >> $GITHUB_STEP_SUMMARY
+            echo "| Yes               | Yes              | Yes               | Build & Deploy     | Code changes detected in ${CMS_DIR_NAME} |" >> $GITHUB_STEP_SUMMARY
+            echo "| Yes               | Yes              | No                | No Build/Deploy    | No code changes detected |" >> $GITHUB_STEP_SUMMARY
+            echo "| Yes               | No               | N/A               | **No Build/Deploy** | Container exists but no artifact (incomplete state) |" >> $GITHUB_STEP_SUMMARY
+          fi
+
           # cms-fe deployment section with enhanced tracking
+          echo "" >> $GITHUB_STEP_SUMMARY
           echo "## 🌐 CMS (${CMS_CONTAINER_NAME})" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY

@@ -141,50 +141,100 @@ jobs:
       - name: Check PayloadCMS Directory Changes
         id: check-changes
         run: |
-          echo "=== Running CMS deployment checks ==="
+          echo "=== Running CMS Deployment Decision Model ==="
 
-          # STEP 1: Show container status
+          # STEP 1: Evaluate Container Status
           CONTAINER_EXISTS="${{ steps.check-container-exists.outputs.container_exists }}"
-          echo "* CMS container (${{ inputs.cms_container_name }}) exists: $CONTAINER_EXISTS"
+          echo "Q1: Does CMS container (${{ inputs.cms_container_name }}) exist? Answer: $CONTAINER_EXISTS"
 
-          # STEP 2: Show commit information
-          CURRENT_COMMIT=$(git rev-parse HEAD)
-          CURRENT_COMMIT_SHORT=$(git rev-parse --short HEAD)
-          echo "* Current commit: $CURRENT_COMMIT_SHORT"
-
-          # STEP 3: Check for artifact and changes
-          if [ "$CONTAINER_EXISTS" = "false" ]; then
-            # Initial deployment: no container exists, deploy current state
-            echo "* No container exists, forcing deployment of current state"
-            echo "* DECISION: Deploy current commit (initial deployment)"
-            echo "changes=true" >> $GITHUB_OUTPUT
-            echo "force_deploy_reason=Initial deployment - no container exists" >> $GITHUB_OUTPUT
-            # List all files in CMS directory for deployment summary
-            git ls-files ./${{ inputs.cms_dir_name }} > ./cms-fe-changed-files.txt
-          elif [ -f "./deployment-markers/last-cms-fe-commit.txt" ]; then
-            # Container exists and artifact exists: check for changes
+          # STEP 2: Evaluate Artifact Status
+          ARTIFACT_EXISTS="false"
+          if [ -f "./deployment-markers/last-cms-fe-commit.txt" ]; then
+            ARTIFACT_EXISTS="true"
             LAST_COMMIT=$(cat ./deployment-markers/last-cms-fe-commit.txt)
             LAST_COMMIT_SHORT=$(git rev-parse --short $LAST_COMMIT 2>/dev/null || echo "N/A")
-            echo "* Artifact found, comparing with last deployed commit: $LAST_COMMIT_SHORT"
+            echo "Q2: Does deployment marker artifact exist? Answer: $ARTIFACT_EXISTS (Last commit: $LAST_COMMIT_SHORT)"
+          else
+            echo "Q2: Does deployment marker artifact exist? Answer: $ARTIFACT_EXISTS"
+          fi
+
+          # STEP 3: Evaluate Changes (if applicable)
+          CHANGES_DETECTED="N/A"
+          CHANGED_FILES=""
+          if [ "$CONTAINER_EXISTS" = "true" ] && [ "$ARTIFACT_EXISTS" = "true" ]; then
             CHANGES=$(git diff --name-only $LAST_COMMIT HEAD -- ./${{ inputs.cms_dir_name }})
             if [ -n "$CHANGES" ]; then
-              echo "* Changes detected in ${{ inputs.cms_dir_name }}:"
-              echo "$CHANGES"
-              echo "* DECISION: Deploy due to code changes"
-              echo "changes=true" >> $GITHUB_OUTPUT
-              echo "$CHANGES" > ./cms-fe-changed-files.txt
+              CHANGES_DETECTED="true"
+              CHANGED_FILES="$CHANGES"
+              echo "Q3: Are there changes in ${{ inputs.cms_dir_name }}? Answer: $CHANGES_DETECTED"
+              echo "Changed files:"
+              echo "$CHANGED_FILES"
             else
-              echo "* No changes detected in ${{ inputs.cms_dir_name }}"
-              echo "* DECISION: No deployment needed"
-              echo "changes=false" >> $GITHUB_OUTPUT
+              CHANGES_DETECTED="false"
+              echo "Q3: Are there changes in ${{ inputs.cms_dir_name }}? Answer: $CHANGES_DETECTED"
             fi
-          # If you want to force a deployment when the container exists but no artifact is found (e.g., to recover from a failed run), modify the else block in the updated step:
           else
-            # Container exists but no artifact: treat as error or skip
-            echo "* WARNING: Container exists but no artifact found. Assuming no deployment needed."
-            echo "* DECISION: No deployment needed (incomplete state)"
+            echo "Q3: Are there changes in ${{ inputs.cms_dir_name }}? Answer: $CHANGES_DETECTED (not checked due to container/artifact status)"
+          fi
+
+          # STEP 4: Decision Matrix
+          echo ""
+          echo "Decision Matrix for Build and Deploy:"
+          echo "| Container Exists? | Artifact Exists? | Changes Detected? | Decision | Reason |"
+          echo "|-------------------|------------------|-------------------|----------|-------|"
+          if [ "$CONTAINER_EXISTS" = "false" ]; then
+            echo "| No                | Any              | Any               | **Build & Deploy** | Initial deployment - no container exists |"
+            echo "| Yes               | Yes              | Yes               | Build & Deploy     | Code changes detected in ${{ inputs.cms_dir_name }} |"
+            echo "| Yes               | Yes              | No                | No Build/Deploy    | No code changes detected |"
+            echo "| Yes               | No               | N/A               | No Build/Deploy    | Container exists but no artifact (incomplete state) |"
+            echo ""
+            echo "DECISION: Build and Deploy (Initial deployment - no container exists)"
+            echo "changes=true" >> $GITHUB_OUTPUT
+            echo "force_deploy_reason=Initial deployment - no container exists" >> $GITHUB_OUTPUT
+            git ls-files ./${{ inputs.cms_dir_name }} > ./cms-fe-changed-files.txt
+          elif [ "$CONTAINER_EXISTS" = "true" ] && [ "$ARTIFACT_EXISTS" = "true" ] && [ "$CHANGES_DETECTED" = "true" ]; then
+            echo "| No                | Any              | Any               | Build & Deploy     | Initial deployment - no container exists |"
+            echo "| Yes               | Yes              | Yes               | **Build & Deploy** | Code changes detected in ${{ inputs.cms_dir_name }} |"
+            echo "| Yes               | Yes              | No                | No Build/Deploy    | No code changes detected |"
+            echo "| Yes               | No               | N/A               | No Build/Deploy    | Container exists but no artifact (incomplete state) |"
+            echo ""
+            echo "DECISION: Build and Deploy (Code changes detected in ${{ inputs.cms_dir_name }})"
+            echo "changes=true" >> $GITHUB_OUTPUT
+            echo "$CHANGED_FILES" > ./cms-fe-changed-files.txt
+          elif [ "$CONTAINER_EXISTS" = "true" ] && [ "$ARTIFACT_EXISTS" = "true" ] && [ "$CHANGES_DETECTED" = "false" ]; then
+            echo "| No                | Any              | Any               | Build & Deploy     | Initial deployment - no container exists |"
+            echo "| Yes               | Yes              | Yes               | Build & Deploy     | Code changes detected in ${{ inputs.cms_dir_name }} |"
+            echo "| Yes               | Yes              | No                | **No Build/Deploy** | No code changes detected |"
+            echo "| Yes               | No               | N/A               | No Build/Deploy    | Container exists but no artifact (incomplete state) |"
+            echo ""
+            echo "DECISION: No Build/Deploy (No code changes detected)"
+            echo "changes=false" >> $GITHUB_OUTPUT
+          else
+            echo "| No                | Any              | Any               | Build & Deploy     | Initial deployment - no container exists |"
+            echo "| Yes               | Yes              | Yes               | Build & Deploy     | Code changes detected in ${{ inputs.cms_dir_name }} |"
+            echo "| Yes               | Yes              | No                | No Build/Deploy    | No code changes detected |"
+            echo "| Yes               | No               | N/A               | **No Build/Deploy** | Container exists but no artifact (incomplete state) |"
+            echo ""
+            echo "DECISION: No Build/Deploy (Container exists but no artifact - incomplete state)"
             echo "changes=false" >> $GITHUB_OUTPUT
           fi
+
+          # STEP 5: Summary of Changed Files (if deploying)
+          if [ "${{ steps.check-changes.outputs.changes }}" = "true" ]; then
+            echo ""
+            echo "Files to be deployed:"
+            cat ./cms-fe-changed-files.txt
+          fi
+
+        # Decision Matrix for Build and Deploy:
+        # | Container Exists? | Artifact Exists? | Changes Detected? | Decision | Reason |
+        # |-------------------|------------------|-------------------|----------|-------|
+        # | No                | Any              | Any               | **Build & Deploy** | Initial deployment - no container exists |
+        # | Yes               | Yes              | Yes               | **Build & Deploy** | Code changes detected in payloadcms-cms |
+        # | Yes               | Yes              | No                | **No Build/Deploy** | No code changes detected |
+        # | Yes               | No               | N/A               | **No Build/Deploy** | Container exists but no artifact (incomplete state) |
+        #
+        # If you want to force a deployment when the container exists but no artifact is found (e.g., to recover from a failed run), modify the else block in the updated step:
 
       # Save changed files to an output instead of using artifacts
       - name: Set changed files as output
@@ -242,7 +292,7 @@ jobs:
           # Push the Docker image to GitHub Container Registry
           docker push ${{ inputs.cms_image_name }}
 
-          #  Delete local env var file (defaults) after transfer
+          # Delete local env var file (defaults) after transfer
           rm ./${{ inputs.cms_dir_name }}/env-defaults.env
 
           echo "BUILT=true" >> $GITHUB_ENV
