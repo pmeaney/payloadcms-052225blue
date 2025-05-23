@@ -26,6 +26,7 @@ jobs:
     with:
       environment: production
       topic_name: payloadcms
+      #  If you don't add quotes to the data here, YAML octal parsing will cause the leading zero to drop off.
       deployment_date: "052225"
       deployment_color: blue
       db_container_name: payloadcms-db-052225blue
@@ -48,6 +49,7 @@ jobs:
     with:
       environment: production
       topic_name: payloadcms
+      #  If you don't add quotes to the data here, YAML octal parsing will cause the leading zero to drop off.
       deployment_date: "052225"
       deployment_color: blue
       cms_dir_name: payloadcms-cms-052225blue
