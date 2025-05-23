@@ -26,7 +26,7 @@ jobs:
     with:
       environment: production
       topic_name: payloadcms
-      deployment_date: 052225
+      deployment_date: "052225"
       deployment_color: blue
       db_container_name: payloadcms-db-052225blue
     permissions:
@@ -48,7 +48,7 @@ jobs:
     with:
       environment: production
       topic_name: payloadcms
-      deployment_date: 052225
+      deployment_date: "052225"
       deployment_color: blue
       cms_dir_name: payloadcms-cms-052225blue
       cms_container_name: payloadcms-cms-052225blue

@@ -17,13 +17,13 @@
 #   -u USER       SSH username for production server
 #   -h            Show help message
 
-# Database configuration
+# Database configuration (matching your new environment)
 POSTGRES_DB="payloadcms-db-052225blue"
 POSTGRES_USER="payloadcms-052225blue-user"
 
-# Default values
+# Default values (corrected for your new environment)
 LOCAL_DB_CONTAINER="payloadcms-db-052225blue"
-PROD_DB_CONTAINER="payloadcms-cms-052225blue"
+PROD_DB_CONTAINER="payloadcms-db-052225blue"  # FIXED: This should match your production DB container name
 PAYLOAD_CONTAINER="payloadcms-cms-052225blue"
 MIGRATIONS_PATH="./payloadcms-cms-052225blue/src/migrations"
 MEDIA_PATH="./payloadcms-cms-052225blue/public/media"
@@ -206,8 +206,9 @@ log "\n${YELLOW}Creating backup of production database...${NC}"
 ssh $PROD_USER@$PROD_SERVER "mkdir -p ~/payloadcms-database-backups"
 
 # Create data-only backup - We'll let PayloadCMS handle the schema
+# FIXED: Add explicit host and port to force TCP connection instead of Unix socket
 log "${YELLOW}Creating data-only backup...${NC}"
-ssh $PROD_USER@$PROD_SERVER "docker exec $PROD_DB_CONTAINER pg_dump -U $POSTGRES_USER --data-only $POSTGRES_DB > ~/payloadcms-database-backups/temp_data_backup.sql"
+ssh $PROD_USER@$PROD_SERVER "docker exec $PROD_DB_CONTAINER pg_dump -h localhost -p 5432 -U $POSTGRES_USER --data-only $POSTGRES_DB > ~/payloadcms-database-backups/temp_data_backup.sql"
 if [ $? -ne 0 ]; then
     log "${RED}✗ Failed to create data backup on production server${NC}"
     exit 1
