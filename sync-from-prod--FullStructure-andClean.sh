@@ -1,5 +1,12 @@
 #!/bin/bash
 #
+#  !!!!!!!!!!!!!!!!!!!!!!!!!!!
+#   RECOMMENDED:
+#     dont forget to run the initial db seed process, 
+#     provided by PayloadCMS admin dashboard when
+#     project first boots up
+#  !!!!!!!!!!!!!!!!!!!!!!!!!!!
+#
 # sync-from-prod.sh
 #
 # Script to sync your local development environment with production.
