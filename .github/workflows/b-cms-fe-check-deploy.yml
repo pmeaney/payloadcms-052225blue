@@ -325,12 +325,12 @@ jobs:
           # 3. While Docker can create it automatically, this gives us control over permissions
           # 4. The entrypoint.sh also creates this directory inside the container as a backup
           # the bind mounts will be located at: 
-          # /home/<githubCICDUsername>/payloadcms-052225blue-cms__migrations
-          # /home/<githubCICDUsername>/payloadcms-052225blue-cms__media
-          ssh prod "mkdir -p ~/${{ inputs.topic_name }}-${{ inputs.deployment_date }}${{ inputs.deployment_color }}-cms__migrations"
+          # /home/<githubCICDUsername>/payloadcms-cms-052225blue__migrations
+          # /home/<githubCICDUsername>/payloadcms-cms-052225blue__media
+          ssh prod "mkdir -p ~/${{ inputs.topic_name }}-cms-${{ inputs.deployment_date }}${{ inputs.deployment_color }}__migrations"
 
           # We'll also need a media directory to be persisted as a bind mount
-          ssh prod "mkdir -p ~/${{ inputs.topic_name }}-${{ inputs.deployment_date }}${{ inputs.deployment_color }}-cms__media"
+          ssh prod "mkdir -p ~/${{ inputs.topic_name }}-cms-${{ inputs.deployment_date }}${{ inputs.deployment_color }}__media"
 
       - name: SSH in and Deploy Updated CMS-Frontend image with Prod Secrets
         id: step-deploy--cms-fe
@@ -366,7 +366,7 @@ jobs:
 
           # Create a temporary env file on the remote server
           echo "Creating temporary environment file..."
-          ssh prod "echo '$PAYLOADCMS__PROD_ENV' > ~/${{ inputs.topic_name }}-${{ inputs.deployment_date }}${{ inputs.deployment_color }}-cms-env.env"
+          ssh prod "echo '$PAYLOADCMS__PROD_ENV' > ~/${{ inputs.topic_name }}-cms-${{ inputs.deployment_date }}${{ inputs.deployment_color }}-env.env"
 
           # Ensure Docker network exists (create if it doesn't)
           ssh prod "docker network ls --filter name=private-${{ inputs.topic_name }}-${{ inputs.deployment_color }}-dockernet -q | grep -q . || docker network create private-${{ inputs.topic_name }}-${{ inputs.deployment_color }}-dockernet"
@@ -380,13 +380,13 @@ jobs:
                       --network private-${{ inputs.topic_name }}-${{ inputs.deployment_color }}-dockernet \
                       --network main-network--npm020325 \
                       -p 3000:3000 \
-                      --env-file ~/${{ inputs.topic_name }}-${{ inputs.deployment_date }}${{ inputs.deployment_color }}-cms-env.env \
-                      -v ~/${{ inputs.topic_name }}-${{ inputs.deployment_date }}${{ inputs.deployment_color }}-cms__migrations:/app/src/migrations \
-                      -v ~/${{ inputs.topic_name }}-${{ inputs.deployment_date }}${{ inputs.deployment_color }}-cms__media:/app/public/media \
+                      --env-file ~/${{ inputs.topic_name }}-cms-${{ inputs.deployment_date }}${{ inputs.deployment_color }}-env.env \
+                      -v ~/${{ inputs.topic_name }}-cms-${{ inputs.deployment_date }}${{ inputs.deployment_color }}__migrations:/app/src/migrations \
+                      -v ~/${{ inputs.topic_name }}-cms-${{ inputs.deployment_date }}${{ inputs.deployment_color }}__media:/app/public/media \
                       ${{ inputs.cms_image_name }}"
 
           echo "Deleting temporarily created prod env file..."
-          ssh prod "rm ~/${{ inputs.topic_name }}-${{ inputs.deployment_date }}${{ inputs.deployment_color }}-cms-env.env"
+          ssh prod "rm ~/${{ inputs.topic_name }}-cms-${{ inputs.deployment_date }}${{ inputs.deployment_color }}-env.env"
 
           # Deployment successful - set appropriate action message
           if [ -n "${{ steps.check-changes.outputs.force_deploy_reason }}" ]; then

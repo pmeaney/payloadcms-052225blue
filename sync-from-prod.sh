@@ -18,21 +18,23 @@
 #   -h            Show help message
 
 # Database configuration
-POSTGRES_DB="payloadcms-db"
-POSTGRES_USER="payloadcms-user"
+POSTGRES_DB="payloadcms-db-052225blue"
+POSTGRES_USER="payloadcms-052225blue-user"
 
 # Default values
-LOCAL_DB_CONTAINER="pg-dev-payloadcms"
-PROD_DB_CONTAINER="payloadcms-postgres-db-portfolio-prod"
-PAYLOAD_CONTAINER="payloadcms-dev-portfolio2025"
-MIGRATIONS_PATH="./payloadcms-cms/src/migrations"
-MEDIA_PATH="./payloadcms-cms/public/media"
+LOCAL_DB_CONTAINER="payloadcms-db-052225blue"
+PROD_DB_CONTAINER="payloadcms-cms-052225blue"
+PAYLOAD_CONTAINER="payloadcms-cms-052225blue"
+MIGRATIONS_PATH="./payloadcms-cms-052225blue/src/migrations"
+MEDIA_PATH="./payloadcms-cms-052225blue/public/media"
 MAIN_DIR="./sync-from-prod--related-files"
 LOCAL_BACKUP_DIR="$MAIN_DIR/sync-to-prod--db-backups"
 LOGS_DIR="$MAIN_DIR/sync-to-prod--logs"
+# dont fill in these two-- they're filled via CLI like this: 
+#     `sh ./sync-from-prod.sh -s Yo.uR.IpA.ddr -u someHumanUserName`
 PROD_SERVER=""
 PROD_USER=""
-COMPOSE_FILE="docker-compose.dev.yml"
+COMPOSE_FILE="docker-compose.local.yml"
 
 # Create timestamp for the log file
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
@@ -167,7 +169,7 @@ mkdir -p $MIGRATIONS_PATH
 
 # 2. Fetch migration files from production server
 log "\n${YELLOW}Fetching migration files from production server...${NC}"
-ssh $PROD_USER@$PROD_SERVER "cd /home/ghaCICDDevOpsUser/payloadcms-cms__migrations && tar czf - ." | tar xzf - -C $MIGRATIONS_PATH
+ssh $PROD_USER@$PROD_SERVER "cd /home/ghaCICDDevOpsUser/payloadcms-cms-052225blue__migrations && tar czf - ." | tar xzf - -C $MIGRATIONS_PATH
 
 if [ $? -eq 0 ]; then
     log "${GREEN}✓ Migration files fetched successfully!${NC}"
@@ -179,7 +181,7 @@ fi
 
 # 3. Ensure we also fetch the .last_migration_run file to prevent duplicate migrations
 log "\n${YELLOW}Fetching .last_migration_run file...${NC}"
-ssh $PROD_USER@$PROD_SERVER "cd /home/ghaCICDDevOpsUser/payloadcms-cms__migrations && cat .last_migration_run 2>/dev/null || echo ''" > "$MIGRATIONS_PATH/.last_migration_run"
+ssh $PROD_USER@$PROD_SERVER "cd /home/ghaCICDDevOpsUser/payloadcms-cms-052225blue__migrations && cat .last_migration_run 2>/dev/null || echo ''" > "$MIGRATIONS_PATH/.last_migration_run"
 
 # 4. Clean and fetch media files from production server
 log "\n${YELLOW}Cleaning local media directory...${NC}"
@@ -187,7 +189,7 @@ rm -rf $MEDIA_PATH/*
 mkdir -p $MEDIA_PATH
 
 log "\n${YELLOW}Fetching media files from production server...${NC}"
-ssh $PROD_USER@$PROD_SERVER "cd /home/ghaCICDDevOpsUser/payloadcms-cms__media && tar czf - ." | tar xzf - -C $MEDIA_PATH
+ssh $PROD_USER@$PROD_SERVER "cd /home/ghaCICDDevOpsUser/payloadcms-cms-052225blue__media && tar czf - ." | tar xzf - -C $MEDIA_PATH
 
 if [ $? -eq 0 ]; then
     log "${GREEN}✓ Media files fetched successfully!${NC}"

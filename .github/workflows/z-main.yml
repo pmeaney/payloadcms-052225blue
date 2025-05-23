@@ -6,7 +6,7 @@ name: Main Deployment Pipeline
 # --------------------------------------------------------------------
 # This project follows a structured naming convention:
 # Repository: topicname-dateColor     (e.g., payloadcms-052225blue)
-# Containers: topicname-dateColor-app (e.g., payloadcms-052225blue-cms, payloadcms-052225blue-db)
+# Containers: topicname-dateColor-app (e.g., payloadcms-cms-052225blue, payloadcms-db-052225blue)
 # This naming approach makes it easy to generate blue/green deployments
 # --------------------------------------------------------------------
 
@@ -28,7 +28,7 @@ jobs:
       topic_name: payloadcms
       deployment_date: 052225
       deployment_color: blue
-      db_container_name: payloadcms-052225blue-db
+      db_container_name: payloadcms-db-052225blue
     permissions:
       contents: read
     secrets:
@@ -51,8 +51,8 @@ jobs:
       deployment_date: 052225
       deployment_color: blue
       cms_dir_name: payloadcms-cms
-      cms_container_name: payloadcms-052225blue-cms
-      cms_image_name: ghcr.io/${{ github.actor }}/payloadcms-052225blue-cms:latest
+      cms_container_name: payloadcms-cms-052225blue
+      cms_image_name: ghcr.io/${{ github.actor }}/payloadcms-cms-052225blue:latest
     permissions:
       contents: write
       actions: write # Explicitly grant artifact permissions
@@ -89,9 +89,9 @@ jobs:
           TOPIC_NAME="payloadcms"
           DEPLOYMENT_DATE="052225"
           DEPLOYMENT_COLOR="blue"
-          DB_CONTAINER_NAME="payloadcms-052225blue-db"
-          CMS_CONTAINER_NAME="payloadcms-052225blue-cms"
-          CMS_IMAGE_NAME="ghcr.io/${{ github.actor }}/payloadcms-052225blue-cms:latest"
+          DB_CONTAINER_NAME="payloadcms-db-052225blue"
+          CMS_CONTAINER_NAME="payloadcms-cms-052225blue"
+          CMS_IMAGE_NAME="ghcr.io/${{ github.actor }}/payloadcms-cms-052225blue:latest"
           CMS_DIR_NAME="payloadcms-cms"
 
           # Collect information about the current and last deployed commits

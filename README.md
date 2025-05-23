@@ -28,8 +28,8 @@ This template implements a Dockerized CICD deployment of PayloadCMS and PostgreS
 Both components are deployed through a comprehensive CICD workflow consisting of three specialized files in `.github/workflows/` - for CMS, Database, and overall orchestration.
 
 **Important:** This project creates dedicated bind mount directories for media and migration files. These are created in the CICD user's home directory at:
-  - `/home/ghaCICDDevOpsUser/payloadcms-052225blue-cms__migrations`
-  - `/home/ghaCICDDevOpsUser/payloadcms-052225blue-cms__media`
+  - `/home/ghaCICDDevOpsUser/payloadcms-cms-052225blue__migrations`
+  - `/home/ghaCICDDevOpsUser/payloadcms-cms-052225blue__media`
 
 
 That is to say-- since it's the Github Action's CICD Ssh User which deploys the app to `/home/<your CICD user>` (e.g., `/home/ghaCICDDevOpsUser`)... the location of the migrations & media bind mount directory will be in that particular user's home dir (not your human user's-- so when you log in a as a human you'll need to navigate to `/home/ghaCICDDevOpsUser` to see the migration & media files sitting on the server). The included sync script `sync-from-prod.sh` retrieves these files to configure your local environment to closely match the remote server, streamlining development.
@@ -102,7 +102,7 @@ docker compose -f docker-compose.local.yml up -d && docker compose -f docker-com
 ### Helpful commands
 
 - Connect to postgresql, once sshed into server (uses default credentials):
-  - `docker exec -it payloadcms-052225blue-db psql -U payloadcms-052225blue-user -d payloadcms-052225blue-db`
+  - `docker exec -it payloadcms-db-052225blue psql -U payloadcms-052225blue-user -d payloadcms-db-052225blue`
 
 ### Remote Deployment
 

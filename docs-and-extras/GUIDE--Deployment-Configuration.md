@@ -51,7 +51,7 @@ with:
   topic_name: payloadcms
   deployment_date: 052225
   deployment_color: blue
-  db_container_name: payloadcms-052225blue-db
+  db_container_name: payloadcms-db-052225blue
 
 # In cms-fe job:
 with:
@@ -60,8 +60,8 @@ with:
   deployment_date: 052225
   deployment_color: blue
   cms_dir_name: payloadcms-cms
-  cms_container_name: payloadcms-052225blue-cms
-  cms_image_name: ghcr.io/${{ github.actor }}/payloadcms-052225blue-cms:latest
+  cms_container_name: payloadcms-cms-052225blue
+  cms_image_name: ghcr.io/${{ github.actor }}/payloadcms-cms-052225blue:latest
 ```
 
 ### 2. Local Development Docker Compose File (docker-compose.local.yml)
@@ -102,12 +102,12 @@ networks:
 #### a. `.github/defaults/env-defaults.yml`
 ```yaml
 postgres_defaults: |
-  POSTGRES_DB=payloadcms-052225blue-db
+  POSTGRES_DB=payloadcms-db-052225blue
   POSTGRES_USER=payloadcms-052225blue-user
   POSTGRES_PASSWORD=payloadcmsPass
 
 payloadcms_defaults: |
-  DATABASE_URI=postgres://payloadcms-052225blue-user:payloadcmsPass@payloadcms-052225blue-db:5432/payloadcms-052225blue-db
+  DATABASE_URI=postgres://payloadcms-052225blue-user:payloadcmsPass@payloadcms-db-052225blue:5432/payloadcms-db-052225blue
   PAYLOAD_SECRET=0505d1e544a564c8730e83fb
   NEXT_PUBLIC_SERVER_URL=http://localhost:3000
   CRON_SECRET=YOUR_CRON_SECRET_HERE
@@ -118,7 +118,7 @@ payloadcms_defaults: |
 
 #### b. CMS `.env` (development)
 ```
-DATABASE_URI=postgres://payloadcms-052225blue-user:payloadcmsPass@payloadcms-052225blue-db:5432/payloadcms-052225blue-db
+DATABASE_URI=postgres://payloadcms-052225blue-user:payloadcmsPass@payloadcms-db-052225blue:5432/payloadcms-db-052225blue
 PAYLOAD_SECRET=7596b4a8fcc3d8086f8f5001
 NEXT_PUBLIC_SERVER_URL=http://localhost:3000
 CRON_SECRET=YOUR_CRON_SECRET_HERE
@@ -127,14 +127,14 @@ PREVIEW_SECRET=YOUR_SECRET_HERE
 
 #### c. DB `.env`
 ```
-POSTGRES_DB=payloadcms-052225blue-db
+POSTGRES_DB=payloadcms-db-052225blue
 POSTGRES_USER=payloadcms-052225blue-user
 POSTGRES_PASSWORD=payloadcmsPass
 ```
 
 #### d. `example-postgres-env.env`
 ```
-POSTGRES_DB=payloadcms-052225blue-db
+POSTGRES_DB=payloadcms-db-052225blue
 POSTGRES_USER=payloadcms-052225blue-user
 POSTGRES_PASSWORD=payloadcmsPass
 ```
@@ -145,7 +145,7 @@ No changes needed to the individual workflow files (`a-db-init.yml` and `b-cms-f
 
 ## CI/CD Deployment Logic
 
-The CI/CD pipeline (`b-cms-fe-check-deploy.yml`) determines when to deploy the CMS container (`payloadcms-052225blue-cms`) based on the following logic:
+The CI/CD pipeline (`b-cms-fe-check-deploy.yml`) determines when to deploy the CMS container (`payloadcms-cms-052225blue`) based on the following logic:
 
 - **Initial Deployment (No Container)**:
   - If the CMS container does not exist on the deployment server, the pipeline deploys the current commit (`HEAD`) without checking for changes.
@@ -170,23 +170,23 @@ The CI/CD pipeline (`b-cms-fe-check-deploy.yml`) determines when to deploy the C
 The blue deployment will create the following resources:
 
 ### Docker Images
-- **blue Deployment Image**: `ghcr.io/[username]/payloadcms-052225blue-cms:latest`
+- **blue Deployment Image**: `ghcr.io/[username]/payloadcms-cms-052225blue:latest`
 
 ### Docker Containers
-- **blue Database**: `payloadcms-052225blue-db`
-- **blue CMS**: `payloadcms-052225blue-cms`
+- **blue Database**: `payloadcms-db-052225blue`
+- **blue CMS**: `payloadcms-cms-052225blue`
 
 ### Docker Networks
 - **blue Network**: `private-payloadcms-blue-dockernet`
 - Also connects to: `main-network--npm020325` (shared)
 
 ### Docker Volumes
-- **blue Database Data**: `payloadcms-052225blue-db-data`
-- **blue Database Init Scripts**: `payloadcms-052225blue-db-init-scripts`
+- **blue Database Data**: `payloadcms-db-052225blue-data`
+- **blue Database Init Scripts**: `payloadcms-db-052225blue-init-scripts`
 
 ### Host Directories (on Deployment Server)
-- **blue CMS Migrations**: `~/payloadcms-052225blue-cms__migrations`
-- **blue CMS Media**: `~/payloadcms-052225blue-cms__media`
+- **blue CMS Migrations**: `~/payloadcms-cms-052225blue__migrations`
+- **blue CMS Media**: `~/payloadcms-cms-052225blue__media`
 
 ## Verification Checklist
 

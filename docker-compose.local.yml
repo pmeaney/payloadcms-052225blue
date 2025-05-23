@@ -20,7 +20,7 @@ services:
     working_dir: /app
     volumes:
       # Bind mount - maps host directory to container for live code editing
-      - ./payloadcms-cms:/app
+      - ./payloadcms-cms-052225blue:/app
       
       # Named volumes for performance - Docker-managed storage, not bind mounts
       # Benefits: 1) Faster I/O operations, especially on macOS/Windows (avoids filesystem translation)

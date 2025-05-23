@@ -116,32 +116,32 @@ jobs:
           END
 
           # Create directory on remote server for the temporary prod env file
-          ssh prod "mkdir -p ~/${{ inputs.topic_name }}-${{ inputs.deployment_date }}${{ inputs.deployment_color }}-db"
+          ssh prod "mkdir -p ~/${{ inputs.topic_name }}-db-${{ inputs.deployment_date }}${{ inputs.deployment_color }}"
 
           # Create the temporary prod env file directly on the remote server
           # Echo the env var content with proper quoting for multiline preservation
-          ssh prod "echo '$POSTGRES__PROD_ENV' > ~/${{ inputs.topic_name }}-${{ inputs.deployment_date }}${{ inputs.deployment_color }}-db/postgres-env-prod.env"
+          ssh prod "echo '$POSTGRES__PROD_ENV' > ~/${{ inputs.topic_name }}-db-${{ inputs.deployment_date }}${{ inputs.deployment_color }}/postgres-env-prod.env"
 
           # Create Docker network if it doesn't exist
           # This network is for PayloadCMS & Postgres to communicate, hence "private" in its name
           ssh prod "docker network ls --filter name=private-${{ inputs.topic_name }}-${{ inputs.deployment_color }}-dockernet -q | grep -q . || docker network create private-${{ inputs.topic_name }}-${{ inputs.deployment_color }}-dockernet"
 
           # Create volumes if they don't exist
-          ssh prod "docker volume inspect ${{ inputs.topic_name }}-${{ inputs.deployment_date }}${{ inputs.deployment_color }}-db-data >/dev/null 2>&1 || docker volume create ${{ inputs.topic_name }}-${{ inputs.deployment_date }}${{ inputs.deployment_color }}-db-data"
-          ssh prod "docker volume inspect ${{ inputs.topic_name }}-${{ inputs.deployment_date }}${{ inputs.deployment_color }}-db-init-scripts >/dev/null 2>&1 || docker volume create ${{ inputs.topic_name }}-${{ inputs.deployment_date }}${{ inputs.deployment_color }}-db-init-scripts"
+          ssh prod "docker volume inspect ${{ inputs.topic_name }}-db-${{ inputs.deployment_date }}${{ inputs.deployment_color }}-data >/dev/null 2>&1 || docker volume create ${{ inputs.topic_name }}-db-${{ inputs.deployment_date }}${{ inputs.deployment_color }}-data"
+          ssh prod "docker volume inspect ${{ inputs.topic_name }}-db-${{ inputs.deployment_date }}${{ inputs.deployment_color }}-init-scripts >/dev/null 2>&1 || docker volume create ${{ inputs.topic_name }}-db-${{ inputs.deployment_date }}${{ inputs.deployment_color }}-init-scripts"
 
           # Run the container on the remote server
           ssh prod "\
           docker run -d \
             --name ${{ inputs.db_container_name }} \
             --network private-${{ inputs.topic_name }}-${{ inputs.deployment_color }}-dockernet \
-            --env-file ~/${{ inputs.topic_name }}-${{ inputs.deployment_date }}${{ inputs.deployment_color }}-db/postgres-env-prod.env \
+            --env-file ~/${{ inputs.topic_name }}-db-${{ inputs.deployment_date }}${{ inputs.deployment_color }}/postgres-env-prod.env \
             -p 5432:5432 \
-            -v ${{ inputs.topic_name }}-${{ inputs.deployment_date }}${{ inputs.deployment_color }}-db-data:/var/lib/postgresql/data \
-            -v ${{ inputs.topic_name }}-${{ inputs.deployment_date }}${{ inputs.deployment_color }}-db-init-scripts:/docker-entrypoint-initdb.d \
+            -v ${{ inputs.topic_name }}-db-${{ inputs.deployment_date }}${{ inputs.deployment_color }}-data:/var/lib/postgresql/data \
+            -v ${{ inputs.topic_name }}-db-${{ inputs.deployment_date }}${{ inputs.deployment_color }}-init-scripts:/docker-entrypoint-initdb.d \
             postgres:17"
 
-          ssh prod "rm ~/${{ inputs.topic_name }}-${{ inputs.deployment_date }}${{ inputs.deployment_color }}-db/postgres-env-prod.env"
+          ssh prod "rm ~/${{ inputs.topic_name }}-db-${{ inputs.deployment_date }}${{ inputs.deployment_color }}/postgres-env-prod.env"
 
           # Verify the container is running in a separate command
           CONTAINER_STATUS=$(ssh prod "docker ps -f name=${{ inputs.db_container_name }} --format '{{.Status}}'")
