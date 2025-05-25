@@ -13,7 +13,7 @@ yq '.payloadcms_defaults' .github/defaults/env-defaults.yml | grep -v "SKIP"
 # For POSTGRES__SECRET_ENV_FILE (lines 12-14)
 yq '.postgres_defaults' .github/defaults/env-defaults.yml | gh secret set POSTGRES__SECRET_ENV_FILE --env production
 
-########## WAAAIIIIIIT A SEC!
+##########  !!!!!!!!!!!!!  WAAAIIIIIIT A SEC!   !!!!!!!!!!!!!!!!!!!!
 # Before you run this next one, make sure you update: NEXT_PUBLIC_SERVER_URL=http://localhost:3000
 # to the actual website domain-- e.g. https://mysite.com
 # For PAYLOAD__SECRET_ENV_FILE (lines 20-26, excluding the last two items with "SKIP")
