@@ -63,14 +63,14 @@ WORKDIR /app
 
 # Copy base files that are needed regardless of build mode
 COPY --from=builder /tmp/env_vars /runtime-prep/.env
-COPY --from=builder /app/public /runtime-prep/public
+COPY --from=builder /app/public /runtime-prep/public/
 COPY --from=builder /app/package.json /runtime-prep/package.json
-COPY --from=builder /app/next.config.js /runtime-prep/
-COPY --from=builder /app/postcss.config.js /runtime-prep/
-COPY --from=builder /app/tailwind.config.mjs /runtime-prep/
-COPY --from=builder /app/tsconfig.json /runtime-prep/
-COPY --from=builder /app/redirects.js /runtime-prep/
-COPY --from=builder /app/next-sitemap.config.cjs /runtime-prep/
+COPY --from=builder /app/next.config.js /runtime-prep/next.config.js
+COPY --from=builder /app/postcss.config.js /runtime-prep/postcss.config.js
+COPY --from=builder /app/tailwind.config.mjs /runtime-prep/tailwind.config.mjs
+COPY --from=builder /app/tsconfig.json /runtime-prep/tsconfig.json
+COPY --from=builder /app/redirects.js /runtime-prep/redirects.js
+COPY --from=builder /app/next-sitemap.config.cjs /runtime-prep/next-sitemap.config.cjs
 COPY --from=builder /tmp/entrypoint.sh /runtime-prep/entrypoint.sh
 
 # Create src directory structure but don't copy migrations
@@ -82,11 +82,11 @@ RUN if [ "$SKIP_NEXTJS_BUILD" = "true" ]; then \
       echo "Creating runtime preparation directory" && \
       mkdir -p /runtime-prep/src && \
       cp -r ./src/* /runtime-prep/src/ && \
-      cp -r .next /runtime-prep/; \
+      cp -r .next /runtime-prep/.next && \
       echo "Preparing for runtime build..."; \
     else \
       echo "Creating build output directory" && \
-      cp -r .next /runtime-prep/ && \
+      cp -r .next /runtime-prep/.next && \
       echo "Using built artifacts..."; \
     fi
 
