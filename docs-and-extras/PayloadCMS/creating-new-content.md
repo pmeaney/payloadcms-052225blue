@@ -1,5 +1,12 @@
-# PayloadCMS Component Dependency Chain Guide 
 
+As of May 28, 2025 – 01:57 pm
+The following info is a bit misguided and needs improvement.
+I'll create better guidance once I fully understand the process of creating a new collection.
+---
+---
+---
+
+# PayloadCMS Component Dependency Chain Guide 
 
 Summary of steps:
 
@@ -83,6 +90,8 @@ PayloadCMS provides excellent support for SEO through its official plugin. Here'
 
 First, install the SEO plugin if it's not already part of your website template:
 
+(**Note: It's included by default, in this Official PayloadCMS Website template**)
+
 ```bash
 npm install @payloadcms/plugin-seo
 # or
@@ -92,6 +101,8 @@ yarn add @payloadcms/plugin-seo
 ### 2. Configure the SEO Plugin
 
 In your `payload.config.ts` file, import and configure the SEO plugin:
+
+**Note: This has been done, by default, in the Official PayloadCMS Website template**
 
 ```typescript
 import { buildConfig } from 'payload/config';
