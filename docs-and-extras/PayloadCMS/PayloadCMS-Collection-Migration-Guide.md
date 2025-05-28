@@ -30,9 +30,9 @@ After creating your collection:
 1. **Commit and push** your changes to trigger CI/CD deployment
 2. **Wait for deployment** to complete
 
-## Step 4: Handle Production Database Migration
+## Step 4: Handle Production Database Migration on Remote Server
 
-After deployment, the admin panel will likely show an error because the database schema hasn't been updated yet.
+After deployment, the live site's admin panel at `yourSite.com/admin` will likely show an error because the database schema hasn't been updated yet.
 
 ### Troubleshooting Steps
 

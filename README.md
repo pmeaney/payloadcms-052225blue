@@ -27,6 +27,12 @@ This template implements a Dockerized CICD deployment of PayloadCMS and PostgreS
 
 Both components are deployed through a comprehensive CICD workflow consisting of three specialized files in `.github/workflows/` - for CMS, Database, and overall orchestration.
 
+- **Migration Process**
+  - This project follows a "Remote First, Local Sync" environment synchronization architecture.  What this means is... When we add new content, we add it on the Remote Server first, then we pull that content down to our local environment when we want to do development work-- such as adding a new content collection.
+    - When we want to do development work, it's important that we pull the newest version of the project from the remote server using the `sync-from-prod--FullStructure-andClean.sh` shell file.
+  - The `sync-from-prod--FullStructure-andClean.sh` shell file will pull the database structure & content, as well as media files, from the remote server to the local server-- Thus, synchronizing the enviornments: the local will now mirror the remote.
+  - From here, we're now ready to do some dev work.  **If that dev work is creating a new collection... then we will need to run through Payload's migration processes from the remote server.  Those steps are detailed in the [PayloadCMS-Collection-Migration-Guide.md](./docs-and-extras/PayloadCMS/PayloadCMS-Collection-Migration-Guide.md)**.
+
 **Important:** This project creates dedicated bind mount directories for media and migration files. These are created in the CICD user's home directory at:
   - `/home/ghaCICDDevOpsUser/payloadcms-cms-052225blue__migrations`
   - `/home/ghaCICDDevOpsUser/payloadcms-cms-052225blue__media`
