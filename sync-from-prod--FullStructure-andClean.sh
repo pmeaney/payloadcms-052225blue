@@ -206,15 +206,17 @@ else
     exit 1
 fi
 
-# 5. Create backup of production database (data only)
+# 5. Create backup of production database (complete dump)
 log "\n${YELLOW}Creating backup of production database...${NC}"
 
 # Ensure backup directory exists on remote server
 ssh $PROD_USER@$PROD_SERVER "mkdir -p ~/payloadcms-database-backups"
+if [ $? -ne 0 ]; then
+    log "${RED}✗ Failed to create backup directory on production server${NC}"
+    exit 1
+fi
 
 # Create complete database backup (schema + data)
-# FIXED: Add explicit host and port to force TCP connection instead of Unix socket
-# Using complete dump instead of data-only to include all schema and data
 log "${YELLOW}Creating complete database backup...${NC}"
 ssh $PROD_USER@$PROD_SERVER "docker exec $PROD_DB_CONTAINER pg_dump -h localhost -p 5432 -U $POSTGRES_USER --clean --if-exists --no-owner --no-privileges $POSTGRES_DB > ~/payloadcms-database-backups/temp_data_backup.sql"
 if [ $? -ne 0 ]; then
@@ -235,161 +237,35 @@ ssh $PROD_USER@$PROD_SERVER "rm ~/payloadcms-database-backups/temp_data_backup.s
 
 log "${GREEN}✓ Production database backup created and downloaded!${NC}"
 
-# 6. Skip PayloadCMS migrations since we're doing a complete restore
-log "\n${YELLOW}Skipping fresh migrations since we're doing a complete database restore...${NC}"
-log "${YELLOW}WARNING: This will completely replace your local database with production data. Press CTRL+C to cancel or ENTER to continue${NC}"
+# 6. Confirm database replacement
+log "\n${YELLOW}WARNING: This will completely replace your local database with production data.${NC}"
+log "${YELLOW}Press CTRL+C to cancel or ENTER to continue${NC}"
 read
 
-# Stop PayloadCMS container to avoid conflicts during restore
-log "Stopping PayloadCMS container for complete database restore..."
-docker-compose -f "$COMPOSE_FILE" stop $PAYLOAD_CONTAINER
-sleep 3
-
-# Process the data file to handle any potential errors with data inserts
-# - Remove any non-data statements (SET, ALTER, SELECT setval, etc.)
-# - Filter out tables that don't exist in the fresh schema
-# - Add error handling for constraint violations
-DATA_MODIFIED="$LOCAL_BACKUP_DIR/modified_$DATA_FILENAME"
-log "Processing backup file to make it more resilient..."
-
-# First, get a list of existing tables in the local database
-EXISTING_TABLES=$(docker exec $LOCAL_DB_CONTAINER psql -U $POSTGRES_USER -d $POSTGRES_DB -t -c "SELECT tablename FROM pg_tables WHERE schemaname = 'public';" | tr -d ' ' | grep -v '^
-
-# Method 1: Run payload:migrate:fresh from inside the container
-# This is more reliable as it ensures the command runs in the right environment
-log "\n${YELLOW}Running migrations:fresh command...${NC}"
-docker exec $PAYLOAD_CONTAINER sh -c "cd /app && pnpm run payload:migrate:fresh" 2>&1 | tee -a "$LOG_FILE"
-
-if [ $? -ne 0 ]; then
-    log "${RED}✗ Failed to run fresh migrations${NC}"
-    exit 1
-fi
-
-log "${GREEN}✓ Fresh database schema created with PayloadCMS migrations!${NC}"
-
-# Stop PayloadCMS container for data import
-log "\n${YELLOW}Stopping PayloadCMS container for data import...${NC}"
-docker-compose -f "$COMPOSE_FILE" stop $PAYLOAD_CONTAINER
-sleep 3
-
-# 7. Restore only the data portion to the clean database
-log "\n${YELLOW}Restoring production data to local database...${NC}"
+# 7. Restore the complete production database
+log "\n${YELLOW}Restoring production database to local environment...${NC}"
 
 # Import the complete database (this will drop and recreate everything)
 log "Restoring complete database from production..."
-cat "$DATA_MODIFIED" | docker exec -i $LOCAL_DB_CONTAINER psql -U $POSTGRES_USER -d $POSTGRES_DB 2>&1 | tee -a "$LOG_FILE"
+cat "$LOCAL_BACKUP_DIR/$DATA_FILENAME" | docker exec -i $LOCAL_DB_CONTAINER psql -U $POSTGRES_USER -d $POSTGRES_DB 2>&1 | tee -a "$LOG_FILE"
 
 # Check for serious import errors
 if grep -q "ERROR:" "$LOG_FILE"; then
-    log "${YELLOW}⚠️ Some errors were encountered during data import.${NC}"
-    log "${YELLOW}These may be expected if there are constraints or duplicate keys.${NC}"
+    log "${YELLOW}⚠️ Some errors were encountered during database restore.${NC}"
+    log "${YELLOW}Checking if these are serious errors...${NC}"
+    
+    # Check for critical errors that would indicate failure
+    if grep -q "FATAL\|does not exist\|permission denied" "$LOG_FILE"; then
+        log "${RED}✗ Critical errors found in database restore${NC}"
+        exit 1
+    else
+        log "${YELLOW}Errors appear to be minor (constraints, etc.) - continuing...${NC}"
+    fi
 else
-    log "${GREEN}✓ Data import completed without error messages.${NC}"
+    log "${GREEN}✓ Database restore completed without error messages.${NC}"
 fi
 
-rm "$DATA_MODIFIED"
-
-log "${GREEN}✓ Production data successfully restored to local database!${NC}"
-
-# 8. Restart local PayloadCMS container
-log "\n${YELLOW}Restarting local PayloadCMS container...${NC}"
-docker-compose -f "$COMPOSE_FILE" start $PAYLOAD_CONTAINER
-
-# Wait for PayloadCMS to be fully up before considering the sync complete
-log "\n${YELLOW}Waiting for PayloadCMS to be fully up...${NC}"
-if wait_for_payload; then
-    log "${GREEN}✓ PayloadCMS is now fully running!${NC}"
-else
-    log "${RED}✗ PayloadCMS did not start properly. Check container logs for more details.${NC}"
-    log "${YELLOW}You may need to check docker logs with: docker logs $PAYLOAD_CONTAINER${NC}"
-    exit 1
-fi
-
-log "\n${GREEN}=====================================${NC}"
-log "${GREEN}Production to local sync complete!${NC}"
-log "${GREEN}Your local environment now mirrors production.${NC}"
-log "${GREEN}=====================================${NC}"
-log "${GREEN}Log file saved to: $LOG_FILE${NC}")
-
-# Create a temporary file with existing table names for easy lookup
-echo "$EXISTING_TABLES" > /tmp/existing_tables.txt
-
-# Process the SQL file more carefully
-cat "$LOCAL_BACKUP_DIR/$DATA_FILENAME" | \
-  # Remove SET statements
-  grep -v "^SET " | \
-  # Remove ALTER statements  
-  grep -v "^ALTER " | \
-  # Remove SELECT setval statements (sequence resets)
-  grep -v "^SELECT pg_catalog.setval" | \
-  # Remove comment lines
-  grep -v "^--" | \
-  # Remove empty lines
-  grep -v "^$" | \
-  # Filter out INSERT statements for tables that don't exist
-  awk '
-    BEGIN { 
-      # Read existing tables into an array
-      while ((getline table < "/tmp/existing_tables.txt") > 0) {
-        existing_tables[table] = 1
-      }
-      close("/tmp/existing_tables.txt")
-    }
-    /^INSERT INTO/ {
-      # Extract table name from INSERT statement
-      match($0, /INSERT INTO [^(]*\.([^ (]+)/, arr)
-      if (arr[1]) {
-        table_name = arr[1]
-        if (existing_tables[table_name]) {
-          print $0
-        } else {
-          print "-- Skipped INSERT for non-existent table: " table_name > "/dev/stderr"
-        }
-      } else {
-        print $0
-      }
-    }
-    !/^INSERT INTO/ { print $0 }
-  ' > "$DATA_MODIFIED"
-
-# Clean up temporary file
-rm -f /tmp/existing_tables.txt
-
-# Method 1: Run payload:migrate:fresh from inside the container
-# This is more reliable as it ensures the command runs in the right environment
-log "\n${YELLOW}Running migrations:fresh command...${NC}"
-docker exec $PAYLOAD_CONTAINER sh -c "cd /app && pnpm run payload:migrate:fresh" 2>&1 | tee -a "$LOG_FILE"
-
-if [ $? -ne 0 ]; then
-    log "${RED}✗ Failed to run fresh migrations${NC}"
-    exit 1
-fi
-
-log "${GREEN}✓ Fresh database schema created with PayloadCMS migrations!${NC}"
-
-# Stop PayloadCMS container for data import
-log "\n${YELLOW}Stopping PayloadCMS container for data import...${NC}"
-docker-compose -f "$COMPOSE_FILE" stop $PAYLOAD_CONTAINER
-sleep 3
-
-# 7. Restore only the data portion to the clean database
-log "\n${YELLOW}Restoring production data to local database...${NC}"
-
-# Import the data into the database
-log "Importing data into the database..."
-cat "$DATA_MODIFIED" | docker exec -i $LOCAL_DB_CONTAINER psql -U $POSTGRES_USER -d $POSTGRES_DB 2>&1 | tee -a "$LOG_FILE"
-
-# Check for serious import errors
-if grep -q "ERROR:" "$LOG_FILE"; then
-    log "${YELLOW}⚠️ Some errors were encountered during data import.${NC}"
-    log "${YELLOW}These may be expected if there are constraints or duplicate keys.${NC}"
-else
-    log "${GREEN}✓ Data import completed without error messages.${NC}"
-fi
-
-rm "$DATA_MODIFIED"
-
-log "${GREEN}✓ Production data successfully restored to local database!${NC}"
+log "${GREEN}✓ Production database successfully restored to local environment!${NC}"
 
 # 8. Restart local PayloadCMS container
 log "\n${YELLOW}Restarting local PayloadCMS container...${NC}"
