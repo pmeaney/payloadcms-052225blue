@@ -22,6 +22,10 @@ const filename = fileURLToPath(import.meta.url);
 const dirname = path.dirname(filename);
 
 export default buildConfig({
+  csrf: [
+    'https://www.pmeaney.com',
+    'https://pmeaney.com',
+  ],
   admin: {
     components: {
       // The `BeforeLogin` component renders a message that you see while logging into your admin panel.
