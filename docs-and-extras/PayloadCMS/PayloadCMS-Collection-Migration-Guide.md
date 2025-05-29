@@ -138,10 +138,25 @@ docker restart [container-name]
 - **Admin panel won't load** = Need to restart container after migration
 - **Changes not showing** = Migration created but not run yet
 
-This process ensures your production database schema stays in sync with your PayloadCMS collection definitions.
+**Server stdout errors**:
+
+- `"You are not allowed to perform this action"`
+  - You added a new collection, migrated it to the server.  It appears in the admin. But when you visit its public component page, you see this stdout error on the server: "You are not allowed to perform this action".  Try adding this csrf array, containing of URLs of your site root URL(s) to payload.config.ts:
+  ```typescript
+  export default buildConfig({
+  // this csrf setting is apparently important-- without it, if you add a new collection,
+  // you may face an error of "You are not allowed to perform this action"
+  csrf: [
+    'https://www.yourSite.com',
+    'https://yourSite.com',
+    // include other subdomains of your site as well
+  ],
+  ```
 
 
 ## Process Flow Diagram
+
+This process ensures your production database schema stays in sync with your PayloadCMS collection definitions.
 
 ```mermaid
 flowchart TD

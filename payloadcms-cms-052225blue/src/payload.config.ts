@@ -22,6 +22,8 @@ const filename = fileURLToPath(import.meta.url);
 const dirname = path.dirname(filename);
 
 export default buildConfig({
+  // this csrf setting is apparently important-- without it, if you add a new collection,
+  // you may face an error of "You are not allowed to perform this action"
   csrf: [
     'https://www.pmeaney.com',
     'https://pmeaney.com',
