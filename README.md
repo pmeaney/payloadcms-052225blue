@@ -2,7 +2,7 @@
 
 >A template ready to turn into a basic Dockerized, Github Actions CICD-deployed PayloadCMS project (e.g. blue-green)
 
-This project serves as a foundation template - dubbed the "blue template" - designed to be used in a basic Docker Compose blue/green deployment architecture.
+This project serves as a foundation template - dubbed the "blue template" - designed to be used in a basic Dockerized blue/green deployment architecture.
 
 The naming convention `payloadcms-052225blue` follows a structured pattern: replace the date stamp and color code with the date of your new instance creation. Each deployment instance should have its dedicated repository. For example, this template can be used to create a complete blue-green deployment with separate repositories: `payloadcms052225-blue` and `payloadcms052225-green`.
 
