@@ -6,7 +6,7 @@ This project serves as a foundation template - dubbed the "blue template" - desi
 
 The naming convention `payloadcms-052225blue` follows a structured pattern: replace the date stamp and color code with the date of your new instance creation. Each deployment instance should have its dedicated repository. For example, this template can be used to create a complete blue-green deployment with separate repositories: `payloadcms052225-blue` and `payloadcms052225-green`.
 
-This template implements a Dockerized CICD deployment of PayloadCMS and PostgreSQL applications, plus a "remote-first, local sync" strategy for migrations and media synchronization. For detailed GitHub repository setup instructions enabling automated CICD deployment, consult the [`Deployment Configuration Guide`](./payloadcms-052225blue/docs-and-extras/GUIDE--Deployment-Configuration.md).
+This template implements a Dockerized CICD deployment of PayloadCMS and PostgreSQL applications, plus a "remote-first, local sync" strategy for migrations and media synchronization. For detailed GitHub repository setup instructions enabling automated CICD deployment, consult the [`Deployment Configuration Guide`](./docs-and-extras/GUIDE--Deployment-Configuration.md).
 
 
 
@@ -22,7 +22,7 @@ This template implements a Dockerized CICD deployment of PayloadCMS and PostgreS
 
 - **PostgreSQL Database Container**
   - Deployed directly from the official PostgreSQL image without modifications
-  - The `./payloadcms-postgres-db` directory contains basic configuration
+  - The `./payloadcms-db` directory contains basic configuration
   - Set up directly on the server during deployment
 
 Both components are deployed through a comprehensive CICD workflow consisting of three specialized files in `.github/workflows/` - for CMS, Database, and overall orchestration.
@@ -38,7 +38,7 @@ Both components are deployed through a comprehensive CICD workflow consisting of
   - `/home/ghaCICDDevOpsUser/payloadcms-cms-052225blue__media`
 
 
-That is to say-- since it's the Github Action's CICD Ssh User which deploys the app to `/home/<your CICD user>` (e.g., `/home/ghaCICDDevOpsUser`)... the location of the migrations & media bind mount directory will be in that particular user's home dir (not your human user's-- so when you log in a as a human you'll need to navigate to `/home/ghaCICDDevOpsUser` to see the migration & media files sitting on the server). The included sync script `sync-from-prod.sh` retrieves these files to configure your local environment to closely match the remote server, streamlining development.
+That is to say-- since it's the Github Action's CICD Ssh User which deploys the app to `/home/<your CICD user>` (e.g., `/home/ghaCICDDevOpsUser`)... the location of the migrations & media bind mount directory will be in that particular user's home dir (not your human user's-- so when you log in a as a human you'll need to navigate to `/home/ghaCICDDevOpsUser` to see the migration & media files sitting on the server). The included sync script `sync-from-prod--FullStructure-andClean.sh` retrieves these files to configure your local environment to closely match the remote server, streamlining development.
 
 # Custom Next.js Dockerfile & Entrypoint.sh Setup for PayloadCMS
 
@@ -93,7 +93,7 @@ This flexibility makes the deployment process more reliable across different env
 ## Deployment Options:
 
 ### Remote Docker Deployment
-The CICD files automatically handle remote Docker deployment once you configure the A. Repo, B. Repo Secrets, and C. the various templated placeholder names, as detailed in the [`Deployment Configuration Guide`](./payloadcms-052225blue/docs-and-extras/GUIDE--Deployment-Configuration.md).
+The CICD files automatically handle remote Docker deployment once you configure the A. Repo, B. Repo Secrets, and C. the various templated placeholder names, as detailed in the [`Deployment Ce`](./docs-and-extras/GUIDE--Deployment-Configuration.md).
 
 You'll want to clone the project, follow my terraform deployment guide, then follow the Deployment Configuration Guide.
 
