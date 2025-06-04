@@ -47,7 +47,7 @@ export const home: (args: HomeArgs) => RequiredDataFromCollectionSlug<'pages'> =
                   format: 0,
                   mode: 'normal',
                   style: '',
-                  text: 'Dev Portfolio',
+                  text: '',
                   version: 1,
                 },
               ],
@@ -668,7 +668,7 @@ export const home: (args: HomeArgs) => RequiredDataFromCollectionSlug<'pages'> =
     meta: {
       description: 'An open-source website built with Payload and Next.js.',
       image: heroImage.id,
-      title: 'Dev Portfolio',
+      title: '',
     },
     title: 'Home',
   };

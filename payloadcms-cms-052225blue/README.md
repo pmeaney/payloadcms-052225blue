@@ -1,6 +1,6 @@
-# Dev Portfolio
+# PayloadCMS Website Template
 
-This is the official [Dev Portfolio](https://github.com/payloadcms/payload/blob/main/templates/website). Use it to power websites, blogs, or portfolios from small to enterprise. This repo includes a fully-working backend, enterprise-grade admin panel, and a beautifully designed, production-ready website.
+This is the official [PayloadCMS Website Template](https://github.com/payloadcms/payload/blob/main/templates/website). Use it to power websites, blogs, or portfolios from small to enterprise. This repo includes a fully-working backend, enterprise-grade admin panel, and a beautifully designed, production-ready website.
 
 This template is right for you if you are working on:
 
@@ -10,18 +10,39 @@ This template is right for you if you are working on:
 
 Core features:
 
-- [Pre-configured Payload Config](#how-it-works)
-- [Authentication](#users-authentication)
-- [Access Control](#access-control)
-- [Layout Builder](#layout-builder)
-- [Draft Preview](#draft-preview)
-- [Live Preview](#live-preview)
-- [On-demand Revalidation](#on-demand-revalidation)
-- [SEO](#seo)
-- [Search](#search)
-- [Redirects](#redirects)
-- [Jobs and Scheduled Publishing](#jobs-and-scheduled-publish)
-- [Website](#website)
+- [PayloadCMS Website Template](#payloadcms-website-template)
+  - [Quick Start](#quick-start)
+    - [Clone](#clone)
+      - [Method 1 (recommended)](#method-1-recommended)
+      - [Method 2](#method-2)
+      - [Method 3](#method-3)
+    - [Development](#development)
+  - [How it works](#how-it-works)
+    - [Collections](#collections)
+    - [Globals](#globals)
+  - [Access control](#access-control)
+  - [Layout Builder](#layout-builder)
+  - [Lexical editor](#lexical-editor)
+  - [Draft Preview](#draft-preview)
+  - [Live preview](#live-preview)
+  - [On-demand Revalidation](#on-demand-revalidation)
+  - [SEO](#seo)
+  - [Search](#search)
+  - [Redirects](#redirects)
+  - [Jobs and Scheduled Publish](#jobs-and-scheduled-publish)
+  - [Website](#website)
+    - [Cache](#cache)
+  - [Development](#development-1)
+    - [Working with Postgres](#working-with-postgres)
+      - [Local development](#local-development)
+      - [Migrations](#migrations)
+    - [Docker](#docker)
+    - [Seed](#seed)
+  - [Production](#production)
+    - [Deploying to Payload Cloud](#deploying-to-payload-cloud)
+    - [Deploying to Vercel](#deploying-to-vercel)
+    - [Self-hosting](#self-hosting)
+  - [Questions](#questions)
 
 ## Quick Start
 
