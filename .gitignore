@@ -44,6 +44,8 @@ public/sitemap*.xml
 *.sql
 # Explicitly include this specific SQL file
 !/payloadcms-052225blue/payloadcms-postgres-db/init-scripts/01-init-permissions.sql
+# Include SQL files in backups directory
+!/backups-jan-2025/*.sql
 *.dump
 *.backup
 
