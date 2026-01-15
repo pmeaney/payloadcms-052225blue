@@ -1,4 +1,18 @@
-# blue Template for Blue-Green Deployment of PayloadCMS
+
+### Todo:
+
+- Figure out how to sense for this error code 128.  on the condition if it occurs, then simply deploy.  Or, set some sort of setting of const overrideBadObj=True.  if(overrideBadObj=true) runDeploy().
+
+[gha error msg](https://github.com/pmeaney/payloadcms-052225blue/actions/runs/15433628273/job/43435841904)
+```
+Q2: Does deployment marker artifact exist? Answer: true (Last commit: 2e752db)
+fatal: bad object 2e752dbc7d1d436708dced49cb399384c85baf72
+Error: Process completed with exit code 128.
+```
+
+---
+
+# Template for Blue-Green Deployment of PayloadCMS
 
 >A template ready to turn into a basic Dockerized, Github Actions CICD-deployed PayloadCMS project (e.g. blue-green)
 
